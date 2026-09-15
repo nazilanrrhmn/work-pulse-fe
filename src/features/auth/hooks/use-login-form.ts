@@ -23,7 +23,7 @@ export function useLoginForm() {
     const result = await dispatch(getLogin(data));
 
     if (getLogin.fulfilled.match(result)) {
-      navigate("/");
+      navigate("/dashboard");
     }
   });
 

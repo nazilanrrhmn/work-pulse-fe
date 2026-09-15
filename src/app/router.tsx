@@ -1,6 +1,8 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import AuthLayout from "../components/layouts/auth-layout";
 import AdminLayout from "../components/layouts/admin-layout";
+import GuestRoute from "../components/layouts/guest-route";
+import ProtectedRoute from "../components/layouts/protected-route";
 import LoginPage from "./routes/auth/login";
 import RegisterPage from "./routes/auth/register";
 import DashboardPage from "./routes/dashboard";
@@ -9,22 +11,35 @@ import ProfilePage from "./routes/profile";
 
 export default function RouterApp() {
   const router = createBrowserRouter([
-    // ─── Auth routes ────────────────────────────────────────────────────────
+    // ─── Index redirect ──────────────────────────────────────────────────────
+    { index: true, element: <Navigate to="/login" replace /> },
+
+    // ─── Auth routes (guest only) ────────────────────────────────────────────
     {
-      element: <AuthLayout />,
+      element: <GuestRoute />,
       children: [
-        { path: "/register", element: <RegisterPage /> },
-        { path: "/login", element: <LoginPage /> },
+        {
+          element: <AuthLayout />,
+          children: [
+            { path: "/register", element: <RegisterPage /> },
+            { path: "/login", element: <LoginPage /> },
+          ],
+        },
       ],
     },
 
-    // ─── Admin routes ───────────────────────────────────────────────────────
+    // ─── Admin routes (protected) ────────────────────────────────────────────
     {
-      element: <AdminLayout />,
+      element: <ProtectedRoute />,
       children: [
-        { path: "/dashboard", element: <DashboardPage /> },
-        { path: "/timesheet", element: <TimesheetPage /> },
-        { path: "/profile", element: <ProfilePage /> },
+        {
+          element: <AdminLayout />,
+          children: [
+            { path: "/dashboard", element: <DashboardPage /> },
+            { path: "/timesheet", element: <TimesheetPage /> },
+            { path: "/profile", element: <ProfilePage /> },
+          ],
+        },
       ],
     },
   ]);

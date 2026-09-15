@@ -11,4 +11,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      // Proxy untuk menghindari CORS saat hit API hari libur dari browser
+      "/holiday-api": {
+        target: "https://use.api.co.id",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/holiday-api/, ""),
+      },
+    },
+  },
 });

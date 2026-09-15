@@ -9,7 +9,7 @@ export type LoginDTO = Pick<UserEntity, "username" | "password">;
 // Request payload untuk register
 export type RegisterDTO = Pick<
   UserEntity,
-  "username" | "name" | "email" | "password" | "npp" | "noHp"
+  "username" | "name" | "email" | "password" | "npp" | "phone"
 >;
 
 // Response login dari backend (hanya token)

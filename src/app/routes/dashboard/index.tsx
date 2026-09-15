@@ -5,7 +5,7 @@ import {
   CalendarX,
   Clock,
   Timer,
-  TrendingUp,
+  AlertCircle,
 } from "lucide-react";
 import StatCard from "@/features/dashboard/components/stat-card";
 import MiniCalendar from "@/features/dashboard/components/mini-calendar";
@@ -14,23 +14,25 @@ import QuickActions from "@/features/dashboard/components/quick-actions";
 import CheckoutModal, {
   type CheckoutData,
 } from "@/features/dashboard/components/checkout-modal";
+import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
 
-// Static demo stats — will be replaced with real API data
-const stats = {
-  workDays: 22,
-  filled: 7,
-  missing: 1,
-  totalHours: 57.5,
-  targetHours: 176,
-  overtimeHours: 5.5,
-  overtimeDays: 2,
-};
+// ── Skeleton placeholder untuk StatCard saat loading ──
+function StatCardSkeleton() {
+  return (
+    <div className="flex min-w-0 animate-pulse flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+      <div className="size-9 shrink-0 rounded-lg bg-muted sm:size-12" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-3 w-24 rounded bg-muted" />
+        <div className="h-6 w-12 rounded bg-muted" />
+        <div className="h-2.5 w-16 rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const user = useAppSelector((state) => state.auth.entities);
-  const fillProgress = Math.round(
-    (stats.filled / (stats.filled + stats.missing)) * 100,
-  );
+  const { summary, isLoading, error } = useDashboardSummary();
 
   // ── Attendance state ──
   const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -38,6 +40,7 @@ export default function DashboardPage() {
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [isOvertime, setIsOvertime] = useState(false);
 
   const handleCheckIn = useCallback(() => {
     const now = new Date();
@@ -47,6 +50,10 @@ export default function DashboardPage() {
 
   const handleCheckOutClick = useCallback(() => {
     setShowCheckoutModal(true);
+  }, []);
+
+  const handleOvertime = useCallback(() => {
+    setIsOvertime(true);
   }, []);
 
   const handleCheckoutSubmit = useCallback(
@@ -61,10 +68,17 @@ export default function DashboardPage() {
         checkOutTime: data.checkOutTime,
         projectName: data.projectName,
         activityDescription: data.activityDescription,
+        isOvertime,
       });
     },
-    [checkInTime],
+    [checkInTime, isOvertime],
   );
+
+  // Label bulan saat ini
+  const currentMonth = new Date().toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -87,48 +101,70 @@ export default function DashboardPage() {
           isCheckedOut={isCheckedOut}
           checkInTime={checkInTime}
           checkOutTime={checkOutTime}
+          isOvertime={isOvertime}
           onCheckIn={handleCheckIn}
           onCheckOut={handleCheckOutClick}
+          onOvertime={handleOvertime}
         />
       </div>
 
-      {/* Stat cards — 2 per row on mobile, 3 on lg, 5 on xl */}
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="size-4 shrink-0" />
+          <span>Gagal memuat data ringkasan: {error}</span>
+        </div>
+      )}
+
+      {/* Stat cards — skeleton saat loading, data real setelahnya */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard
-          title="Total Hari Kerja"
-          value={stats.workDays}
-          subtitle="September 2026"
-          icon={CalendarCheck}
-          variant="default"
-        />
-        <StatCard
-          title="Sudah Diisi"
-          value={stats.filled}
-          subtitle={`dari ${stats.workDays} hari`}
-          icon={CalendarCheck}
-          variant="success"
-        />
-        <StatCard
-          title="Belum Diisi"
-          value={stats.missing}
-          subtitle="hari terlewat"
-          icon={CalendarX}
-          variant={stats.missing > 0 ? "danger" : "default"}
-        />
-        <StatCard
-          title="Total Hari Lembur"
-          value={stats.overtimeDays}
-          subtitle="hari ini"
-          icon={Clock}
-          variant="default"
-        />
-        <StatCard
-          title="Total Lembur"
-          value={`${stats.overtimeHours}j`}
-          subtitle="bulan ini"
-          icon={Timer}
-          variant="warning"
-        />
+        {isLoading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Total Hari Kerja"
+              value={summary?.workDayTotal ?? "–"}
+              subtitle={currentMonth}
+              icon={CalendarCheck}
+              variant="default"
+            />
+            <StatCard
+              title="Sudah Diisi"
+              value={summary?.clockInTotal ?? "–"}
+              subtitle={`dari ${summary?.workDayTotal ?? "–"} hari`}
+              icon={CalendarCheck}
+              variant="success"
+            />
+            <StatCard
+              title="Belum Diisi"
+              value={summary?.missingAttendanceTotal ?? "–"}
+              subtitle="hari terlewat"
+              icon={CalendarX}
+              variant={(summary?.missingAttendanceTotal ?? 0) > 0 ? "danger" : "default"}
+            />
+            <StatCard
+              title="Total Hari Lembur"
+              value={summary?.totalOvertime ?? "–"}
+              subtitle="bulan ini"
+              icon={Clock}
+              variant="default"
+            />
+            <StatCard
+              title="Total Lembur"
+              value={summary?.formattedTotalOvertimeHours ?? "–"}
+              subtitle={`${summary?.totalOvertimeMinutes ?? 0} menit`}
+              icon={Timer}
+              variant="warning"
+            />
+          </>
+        )}
       </div>
 
       {/* Main grid: Calendar | Recent Activity */}

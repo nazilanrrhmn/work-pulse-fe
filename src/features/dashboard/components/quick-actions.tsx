@@ -7,8 +7,10 @@ interface QuickActionsProps {
   isCheckedOut: boolean;
   checkInTime: Date | null;
   checkOutTime: Date | null;
+  isOvertime: boolean;
   onCheckIn: () => void;
   onCheckOut: () => void;
+  onOvertime: () => void;
 }
 
 function formatTime(date: Date | null): string {
@@ -24,8 +26,10 @@ export default function QuickActions({
   isCheckedOut,
   checkInTime,
   checkOutTime,
+  isOvertime,
   onCheckIn,
   onCheckOut,
+  onOvertime,
 }: QuickActionsProps) {
   return (
     <>
@@ -121,6 +125,47 @@ export default function QuickActions({
             )}
           </div>
         </button>
+
+        {/* Overtime card */}
+        <button
+          type="button"
+          disabled={!isCheckedIn || isOvertime || isCheckedOut}
+          onClick={onOvertime}
+          className={cn(
+            "col-span-2 flex items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[72px]",
+            isOvertime
+              ? "cursor-default border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
+              : (!isCheckedIn || isCheckedOut)
+                ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
+                : "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95",
+          )}
+        >
+          <div
+            className={cn(
+              "flex size-10 items-center justify-center rounded-xl",
+              isOvertime
+                ? "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400"
+                : (!isCheckedIn || isCheckedOut)
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-amber-500/10 text-amber-500",
+            )}
+          >
+            {isOvertime ? <CheckCircle className="size-5" /> : <Clock className="size-5" />}
+          </div>
+          <div className="text-left flex-1">
+            <p className={cn(
+              "text-sm font-semibold leading-tight",
+              isOvertime ? "text-amber-700 dark:text-amber-400" : "text-foreground",
+            )}>
+              {isOvertime ? "Lembur Aktif" : "Mulai Lembur"}
+            </p>
+            {!isOvertime && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {isCheckedIn && !isCheckedOut ? "Catat waktu lembur Anda" : "Check-in dulu"}
+              </p>
+            )}
+          </div>
+        </button>
       </div>
 
       {/* ── Desktop: Compact inline buttons (sm+) ── */}
@@ -157,6 +202,24 @@ export default function QuickActions({
         >
           {isCheckedOut ? <CheckCircle className="size-4" /> : <LogOut className="size-4" />}
           {isCheckedOut ? `Check-out: ${formatTime(checkOutTime)}` : "Check-out"}
+        </button>
+
+        {/* Overtime */}
+        <button
+          type="button"
+          disabled={!isCheckedIn || isOvertime || isCheckedOut}
+          onClick={onOvertime}
+          className={cn(
+            "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
+            isOvertime
+              ? "cursor-default border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+              : (!isCheckedIn || isCheckedOut)
+                ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
+                : "border-border bg-background hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 shadow-sm",
+          )}
+        >
+          {isOvertime ? <CheckCircle className="size-4" /> : <Clock className="size-4" />}
+          {isOvertime ? "Lembur Aktif" : "Lembur"}
         </button>
 
         {/* Export */}

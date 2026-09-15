@@ -5,5 +5,5 @@ export interface UserEntity {
   username: string;
   password: string;
   npp: number;
-  noHp: string;
+  phone: string;
 }

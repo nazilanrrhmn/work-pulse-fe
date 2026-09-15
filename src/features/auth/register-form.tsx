@@ -81,14 +81,14 @@ export function RegisterForm({
 
           {/* No HP */}
           <Field>
-            <FieldLabel htmlFor="noHp">No. HP</FieldLabel>
+            <FieldLabel htmlFor="phone">No. HP</FieldLabel>
             <Input
-              {...register("noHp")}
+              {...register("phone")}
               id="noHp"
               type="tel"
               placeholder="08123456789"
             />
-            <FieldError errors={[errors.noHp]} />
+            <FieldError errors={[errors.phone]} />
           </Field>
 
           {/* Password */}
