@@ -26,7 +26,7 @@ export function LoginForm({
         <div className="flex flex-col items-center gap-1 text-center">
           <h1 className="text-2xl font-bold">Login to your account</h1>
           <p className="text-sm text-balance text-muted-foreground">
-            Enter your username below to login to your account
+            Enter your NPP below to login to your account
           </p>
         </div>
 
@@ -38,14 +38,9 @@ export function LoginForm({
         )}
 
         <Field>
-          <FieldLabel htmlFor="username">Username</FieldLabel>
-          <Input
-            {...register("username")}
-            id="username"
-            type="text"
-            placeholder="Username"
-          />
-          <FieldError errors={[errors.username]} />
+          <FieldLabel htmlFor="npp">NPP</FieldLabel>
+          <Input {...register("npp")} id="npp" type="text" placeholder="NPP" />
+          <FieldError errors={[errors.npp]} />
         </Field>
 
         <Field>

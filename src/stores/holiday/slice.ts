@@ -1,6 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { HolidayDTO } from "../../features/dashboard/types/holiday.dto";
-import { getHolidays } from "./async";
+import { getHolidays, syncHolidays } from "./async";
 
 interface HolidayState {
   // Cache per tahun: { "2026": [...], "2025": [...] }
@@ -32,6 +32,17 @@ const holidaySlice = createSlice({
         state.loading = "success";
       })
       .addCase(getHolidays.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload as string;
+      })
+      .addCase(syncHolidays.pending, (state) => {
+        state.loading = "pending";
+        state.error = undefined;
+      })
+      .addCase(syncHolidays.fulfilled, (state) => {
+        state.loading = "success";
+      })
+      .addCase(syncHolidays.rejected, (state, action) => {
         state.loading = "failed";
         state.error = action.payload as string;
       });

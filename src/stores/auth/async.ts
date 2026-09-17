@@ -23,7 +23,7 @@ export const getLogin = createAsyncThunk<AuthDTO, LoginDTO>(
       // Simpan token ke cookie (expires 7 hari)
       Cookies.set("token", res.data.token, { expires: 7 });
 
-      // Decode JWT untuk ambil data user (npp, name, username, status)
+      // Decode JWT untuk ambil data user (npp, name, status)
       const user = jwtDecode<AuthDTO>(res.data.token);
       return user;
     } catch (error) {

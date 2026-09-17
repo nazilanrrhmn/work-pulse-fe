@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useAppSelector } from "@/hooks/use-store";
+import { useAppSelector, useAppDispatch } from "@/hooks/use-store";
 import {
   CalendarCheck,
   CalendarX,
@@ -14,7 +14,13 @@ import QuickActions from "@/features/dashboard/components/quick-actions";
 import CheckoutModal, {
   type CheckoutData,
 } from "@/features/dashboard/components/checkout-modal";
+import LeaveModal, {
+  type LeaveData,
+} from "@/features/dashboard/components/leave-modal";
 import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
+import { setLocalCheckIn } from "@/stores/attendance/slice";
+import { checkInPresence, clockOutPresence, submitLeave } from "@/stores/attendance/async";
+import Swal from "sweetalert2";
 
 // ── Skeleton placeholder untuk StatCard saat loading ──
 function StatCardSkeleton() {
@@ -35,18 +41,41 @@ export default function DashboardPage() {
   const { summary, isLoading, error } = useDashboardSummary();
 
   // ── Attendance state ──
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
-  const [isCheckedOut, setIsCheckedOut] = useState(false);
-  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
-  const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
+  const dispatch = useAppDispatch();
+  const { isCheckedIn, isCheckedOut, checkInTime, loading } = useAppSelector(
+    (state) => state.attendance,
+  );
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
 
   const handleCheckIn = useCallback(() => {
-    const now = new Date();
-    setCheckInTime(now);
-    setIsCheckedIn(true);
-  }, []);
+    const now = new Date().toISOString();
+    dispatch(setLocalCheckIn(now));
+
+    dispatch(checkInPresence())
+      .unwrap()
+      .then(() => {
+        Swal.fire({
+          icon: "success",
+          title: "Berhasil Check-In",
+          text: "Waktu check-in Anda telah dicatat",
+          background: "#1D1D1D",
+          color: "#fff",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      })
+      .catch((err) => {
+        Swal.fire({
+          icon: "error",
+          title: "Oops..",
+          text: err || "Gagal mencatat check-in",
+          background: "#1D1D1D",
+          color: "#fff",
+        });
+      });
+  }, [dispatch, user?.uuid]);
 
   const handleCheckOutClick = useCallback(() => {
     setShowCheckoutModal(true);
@@ -58,20 +87,84 @@ export default function DashboardPage() {
 
   const handleCheckoutSubmit = useCallback(
     (data: CheckoutData) => {
-      setCheckOutTime(data.checkOutTime);
-      setIsCheckedOut(true);
       setShowCheckoutModal(false);
 
-      // TODO: Send data to API
-      console.log("Checkout data:", {
-        checkInTime,
-        checkOutTime: data.checkOutTime,
+      if (!user?.uuid || !checkInTime) return;
+
+      const dateObj = new Date(checkInTime);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const day = String(dateObj.getDate()).padStart(2, "0");
+
+      const payload = {
         projectName: data.projectName,
         activityDescription: data.activityDescription,
-        isOvertime,
-      });
+      };
+
+      dispatch(clockOutPresence(payload))
+        .unwrap()
+        .then(() => {
+          Swal.fire({
+            icon: "success",
+            title: "Berhasil",
+            text: "Data presensi berhasil dikirim",
+            background: "#1D1D1D",
+            color: "#fff",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        })
+        .catch((err) => {
+          Swal.fire({
+            icon: "error",
+            title: "Oops..",
+            text: err || "Gagal mengirim data presensi",
+            background: "#1D1D1D",
+            color: "#fff",
+          });
+        });
     },
-    [checkInTime, isOvertime],
+    [dispatch, user?.uuid, checkInTime, isOvertime],
+  );
+
+  const handleLeaveClick = useCallback(() => {
+    setShowLeaveModal(true);
+  }, []);
+
+  const handleLeaveSubmit = useCallback(
+    (data: LeaveData) => {
+      setShowLeaveModal(false);
+
+      const payload = {
+        date: data.date,
+        type: data.type,
+        projectName: data.projectName,
+      };
+
+      dispatch(submitLeave(payload))
+        .unwrap()
+        .then(() => {
+          Swal.fire({
+            icon: "success",
+            title: "Berhasil",
+            text: "Pengajuan izin berhasil dikirim",
+            background: "#1D1D1D",
+            color: "#fff",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        })
+        .catch((err) => {
+          Swal.fire({
+            icon: "error",
+            title: "Oops..",
+            text: err || "Gagal mengirim pengajuan",
+            background: "#1D1D1D",
+            color: "#fff",
+          });
+        });
+    },
+    [dispatch],
   );
 
   // Label bulan saat ini
@@ -89,7 +182,7 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground">
             Halo,{" "}
             <span className="font-semibold text-foreground">
-              {user?.name ?? user?.username}
+              {user?.name ?? user?.npp}
             </span>
             ! Berikut ringkasan timesheet Anda bulan ini.
           </p>
@@ -99,12 +192,13 @@ export default function DashboardPage() {
         <QuickActions
           isCheckedIn={isCheckedIn}
           isCheckedOut={isCheckedOut}
-          checkInTime={checkInTime}
-          checkOutTime={checkOutTime}
+          checkInTime={checkInTime ? new Date(checkInTime) : null}
+          checkOutTime={isCheckedOut ? new Date() : null}
           isOvertime={isOvertime}
           onCheckIn={handleCheckIn}
           onCheckOut={handleCheckOutClick}
           onOvertime={handleOvertime}
+          onLeave={handleLeaveClick}
         />
       </div>
 
@@ -147,7 +241,11 @@ export default function DashboardPage() {
               value={summary?.missingAttendanceTotal ?? "–"}
               subtitle="hari terlewat"
               icon={CalendarX}
-              variant={(summary?.missingAttendanceTotal ?? 0) > 0 ? "danger" : "default"}
+              variant={
+                (summary?.missingAttendanceTotal ?? 0) > 0
+                  ? "danger"
+                  : "default"
+              }
             />
             <StatCard
               title="Total Hari Lembur"
@@ -185,6 +283,13 @@ export default function DashboardPage() {
         open={showCheckoutModal}
         onOpenChange={setShowCheckoutModal}
         onSubmit={handleCheckoutSubmit}
+      />
+
+      {/* Leave Modal */}
+      <LeaveModal
+        open={showLeaveModal}
+        onOpenChange={setShowLeaveModal}
+        onSubmit={handleLeaveSubmit}
       />
     </div>
   );

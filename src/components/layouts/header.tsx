@@ -33,7 +33,7 @@ export default function Header({ onMenuOpen }: HeaderProps) {
         <div className="text-sm text-muted-foreground">
           Welcome back,{" "}
           <span className="font-semibold text-foreground">
-            {user?.name ?? user?.username ?? "—"}
+            {user?.name ?? user?.npp ?? "—"}
           </span>
         </div>
       </div>
@@ -52,12 +52,12 @@ export default function Header({ onMenuOpen }: HeaderProps) {
         <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm md:px-3">
           <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
             {user?.name?.charAt(0).toUpperCase() ??
-              user?.username?.charAt(0).toUpperCase() ?? (
+              user?.npp?.charAt(0).toUpperCase() ?? (
                 <User className="size-4" />
               )}
           </div>
           <div className="hidden flex-col sm:flex">
-            <span className="font-medium leading-none">{user?.name ?? user?.username}</span>
+            <span className="font-medium leading-none">{user?.name ?? user?.npp}</span>
             <span className="text-xs text-muted-foreground">{user?.npp}</span>
           </div>
         </div>

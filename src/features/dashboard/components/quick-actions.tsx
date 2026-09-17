@@ -11,6 +11,7 @@ interface QuickActionsProps {
   onCheckIn: () => void;
   onCheckOut: () => void;
   onOvertime: () => void;
+  onLeave: () => void;
 }
 
 function formatTime(date: Date | null): string {
@@ -30,6 +31,7 @@ export default function QuickActions({
   onCheckIn,
   onCheckOut,
   onOvertime,
+  onLeave,
 }: QuickActionsProps) {
   return (
     <>
@@ -166,6 +168,40 @@ export default function QuickActions({
             )}
           </div>
         </button>
+
+        {/* Leave card */}
+        <button
+          type="button"
+          disabled={isCheckedIn}
+          onClick={onLeave}
+          className={cn(
+            "col-span-2 flex items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[72px]",
+            isCheckedIn
+              ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
+              : "border-border bg-card hover:border-blue-500/40 hover:shadow-md cursor-pointer active:scale-95",
+          )}
+        >
+          <div
+            className={cn(
+              "flex size-10 items-center justify-center rounded-xl",
+              isCheckedIn
+                ? "bg-muted text-muted-foreground"
+                : "bg-blue-500/10 text-blue-500",
+            )}
+          >
+            <FileDown className="size-5" />
+          </div>
+          <div className="text-left flex-1">
+            <p className={cn(
+              "text-sm font-semibold leading-tight text-foreground",
+            )}>
+              Izin / Cuti
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isCheckedIn ? "Tidak bisa izin karena sudah hadir" : "Ajukan absen tidak hadir"}
+            </p>
+          </div>
+        </button>
       </div>
 
       {/* ── Desktop: Compact inline buttons (sm+) ── */}
@@ -222,15 +258,21 @@ export default function QuickActions({
           {isOvertime ? "Lembur Aktif" : "Lembur"}
         </button>
 
-        {/* Export */}
-        <Link
-          to="#"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-muted transition-colors shadow-sm"
-          title="Export Timesheet"
+        {/* Leave */}
+        <button
+          type="button"
+          disabled={isCheckedIn}
+          onClick={onLeave}
+          className={cn(
+            "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
+            isCheckedIn
+              ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
+              : "border-border bg-background hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400 shadow-sm",
+          )}
         >
           <FileDown className="size-4" />
-          <span className="hidden lg:inline">Export</span>
-        </Link>
+          Izin / Cuti
+        </button>
       </div>
     </>
   );

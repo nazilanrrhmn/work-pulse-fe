@@ -1,8 +1,3 @@
-import { useState } from "react";
-import { useAppSelector } from "@/hooks/use-store";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   User,
   Pencil,
@@ -10,175 +5,41 @@ import {
   X,
   Phone,
   Mail,
-  BadgeCheck,
   Hash,
   Clock,
   Lock,
+  Building,
+  Building2,
+  Briefcase,
+  Users,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { cn } from "cn";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const COOLDOWN_DAYS = 7;
-const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
-const LS_KEY = "wp_sensitive_fields_last_changed";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function getLastChanged(): Date | null {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const d = new Date(raw);
-    return isNaN(d.getTime()) ? null : d;
-  } catch {
-    return null;
-  }
-}
-
-function saveLastChanged() {
-  try {
-    localStorage.setItem(LS_KEY, new Date().toISOString());
-  } catch {}
-}
-
-/** Returns remaining cooldown as a formatted string, or null if cooldown is over. */
-function getRemainingCooldown(lastChanged: Date | null): string | null {
-  if (!lastChanged) return null;
-  const elapsed = Date.now() - lastChanged.getTime();
-  if (elapsed >= COOLDOWN_MS) return null;
-
-  const remainMs = COOLDOWN_MS - elapsed;
-  const days = Math.floor(remainMs / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((remainMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const mins = Math.floor((remainMs % (1000 * 60 * 60)) / (1000 * 60));
-
-  if (days > 0) return `${days} hari ${hours} jam lagi`;
-  if (hours > 0) return `${hours} jam ${mins} menit lagi`;
-  return `${mins} menit lagi`;
-}
-
-// ── Validation ────────────────────────────────────────────────────────────────
-const profileSchema = z.object({
-  name: z.string().min(2, "Nama minimal 2 karakter"),
-  email: z.string().email("Format email tidak valid"),
-  noHp: z
-    .string()
-    .min(8, "No. HP minimal 8 karakter")
-    .regex(/^[\d+\-\s()]+$/, "Format no. HP tidak valid"),
-  username: z.string().min(3, "Username minimal 3 karakter").regex(/^\S+$/, "Username tidak boleh mengandung spasi"),
-  npp: z.string().min(1, "NPP tidak boleh kosong"),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-
-// ── Avatar ────────────────────────────────────────────────────────────────────
-function Avatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join("");
-  return (
-    <div className="flex size-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold shadow-md">
-      {initials || <User className="size-9" />}
-    </div>
-  );
-}
-
-// ── Cooldown Badge ────────────────────────────────────────────────────────────
-function CooldownBadge({ remaining }: { remaining: string }) {
-  return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-      <Lock className="size-3.5 shrink-0" />
-      <span>
-        Username & NPP dapat diubah kembali dalam{" "}
-        <span className="font-semibold">{remaining}</span>
-      </span>
-    </div>
-  );
-}
-
-// ── Info Row ──────────────────────────────────────────────────────────────────
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string | number | null | undefined;
-}) {
-  return (
-    <div className="flex items-start gap-3 py-3">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        <Icon className="size-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate font-medium text-foreground">{value ?? "—"}</p>
-      </div>
-    </div>
-  );
-}
+import Avatar from "@/features/profile/components/avatar";
+import CooldownBadge from "@/features/profile/components/cooldown-badge";
+import InfoRow from "@/features/profile/components/info-row";
+import SignatureUploader from "@/features/profile/components/signature-uploader";
+import { useProfileForm, COOLDOWN_DAYS } from "@/features/profile/hooks/use-profile-form";
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
-  const user = useAppSelector((state) => state.auth.entities);
-
-  // Sensitive-field cooldown
-  const [lastChanged] = useState<Date | null>(getLastChanged);
-  const cooldownRemaining = getRemainingCooldown(lastChanged);
-  const isSensitiveLocked = cooldownRemaining !== null;
-
-  // Local editable state (will be wired to API later)
-  const [profileData, setProfileData] = useState({
-    name: user?.name ?? "",
-    email: "",
-    noHp: "",
-    username: user?.username ?? "",
-    npp: String(user?.npp ?? ""),
-  });
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
   const {
+    profileData,
+    isEditing,
+    saveSuccess,
+    isSensitiveLocked,
+    cooldownRemaining,
     register,
     handleSubmit,
-    reset,
-    formState: { errors, isDirty },
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    values: profileData,
-  });
-
-  const handleEdit = () => {
-    reset(profileData);
-    setIsEditing(true);
-    setSaveSuccess(false);
-  };
-
-  const handleCancel = () => {
-    reset(profileData);
-    setIsEditing(false);
-  };
-
-  const handleSave = (values: ProfileFormValues) => {
-    // Check if sensitive fields changed
-    const sensitiveChanged =
-      values.username !== profileData.username || values.npp !== profileData.npp;
-
-    // TODO: call API to update profile
-    setProfileData(values);
-    if (sensitiveChanged) {
-      saveLastChanged();
-    }
-    setIsEditing(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
-  };
+    handleEdit,
+    handleCancel,
+    handleSave,
+    errors,
+    isDirty,
+  } = useProfileForm();
 
   return (
     <div className="space-y-6">
@@ -195,12 +56,11 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
             <div className="flex flex-col items-center gap-3 text-center">
-              <Avatar name={profileData.name || profileData.username} />
+              <Avatar name={profileData.name || profileData.npp} />
               <div>
                 <p className="text-lg font-bold leading-tight">
-                  {profileData.name || profileData.username}
+                  {profileData.name || profileData.npp}
                 </p>
-                <p className="text-sm text-muted-foreground">@{profileData.username}</p>
               </div>
 
               {saveSuccess && (
@@ -213,7 +73,6 @@ export default function ProfilePage() {
 
             <div className="mt-4 divide-y divide-border">
               <InfoRow icon={Hash} label="NPP" value={profileData.npp} />
-              <InfoRow icon={BadgeCheck} label="Username" value={profileData.username} />
             </div>
           </div>
 
@@ -229,7 +88,7 @@ export default function ProfilePage() {
                     Cooldown Aktif
                   </p>
                   <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
-                    Username & NPP dikunci selama {COOLDOWN_DAYS} hari sejak perubahan terakhir.
+                    NPP dikunci selama {COOLDOWN_DAYS} hari sejak perubahan terakhir.
                     Dapat diubah dalam{" "}
                     <span className="font-semibold">{cooldownRemaining}</span>.
                   </p>
@@ -349,34 +208,7 @@ export default function ProfilePage() {
                 <FieldError>{errors.noHp?.message}</FieldError>
               </Field>
 
-              {/* Username */}
-              <Field>
-                <FieldLabel htmlFor="username" className="flex items-center gap-1.5">
-                  <BadgeCheck className="size-3.5 text-muted-foreground" />
-                  Username
-                  {isSensitiveLocked && (
-                    <span className="ml-auto flex items-center gap-1 text-xs font-normal text-amber-600 dark:text-amber-400">
-                      <Lock className="size-3" />
-                      Terkunci
-                    </span>
-                  )}
-                </FieldLabel>
-                <Input
-                  id="username"
-                  placeholder="username"
-                  disabled={!isEditing || isSensitiveLocked}
-                  aria-invalid={!!errors.username}
-                  className={cn(
-                    (!isEditing || isSensitiveLocked) && "cursor-default bg-muted/30",
-                  )}
-                  {...register("username")}
-                />
-                {isSensitiveLocked ? (
-                  <CooldownBadge remaining={cooldownRemaining!} />
-                ) : (
-                  <FieldError>{errors.username?.message}</FieldError>
-                )}
-              </Field>
+
 
               {/* NPP */}
               <Field>
@@ -406,16 +238,111 @@ export default function ProfilePage() {
                   <FieldError>{errors.npp?.message}</FieldError>
                 )}
               </Field>
+
+              <Field>
+                <FieldLabel htmlFor="nppBni" className="flex items-center gap-1.5">
+                  <Hash className="size-3.5 text-muted-foreground" /> NPP BNI
+                </FieldLabel>
+                <Input
+                  id="nppBni"
+                  type="number"
+                  placeholder="Masukkan NPP BNI"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.nppBni}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("nppBni")}
+                />
+                <FieldError>{errors.nppBni?.message}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="manager" className="flex items-center gap-1.5">
+                  <User className="size-3.5 text-muted-foreground" /> Manager
+                </FieldLabel>
+                <Input
+                  id="manager"
+                  placeholder="Nama Manager"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.manager}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("manager")}
+                />
+                <FieldError>{errors.manager?.message}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="departemenHead" className="flex items-center gap-1.5">
+                  <Briefcase className="size-3.5 text-muted-foreground" /> Departemen Head
+                </FieldLabel>
+                <Input
+                  id="departemenHead"
+                  placeholder="Nama Departemen Head"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.departemenHead}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("departemenHead")}
+                />
+                <FieldError>{errors.departemenHead?.message}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="divisi" className="flex items-center gap-1.5">
+                  <Building2 className="size-3.5 text-muted-foreground" /> Divisi
+                </FieldLabel>
+                <Input
+                  id="divisi"
+                  placeholder="Nama Divisi"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.divisi}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("divisi")}
+                />
+                <FieldError>{errors.divisi?.message}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="departemen" className="flex items-center gap-1.5">
+                  <Building className="size-3.5 text-muted-foreground" /> Departemen
+                </FieldLabel>
+                <Input
+                  id="departemen"
+                  placeholder="Nama Departemen"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.departemen}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("departemen")}
+                />
+                <FieldError>{errors.departemen?.message}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="kelompok" className="flex items-center gap-1.5">
+                  <Users className="size-3.5 text-muted-foreground" /> Kelompok
+                </FieldLabel>
+                <Input
+                  id="kelompok"
+                  placeholder="Nama Kelompok"
+                  disabled={!isEditing}
+                  aria-invalid={!!errors.kelompok}
+                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  {...register("kelompok")}
+                />
+                <FieldError>{errors.kelompok?.message}</FieldError>
+              </Field>
             </form>
 
             {/* Footer note */}
             <div className="rounded-b-xl border-t border-border bg-muted/20 px-6 py-3">
               <p className="text-xs text-muted-foreground">
                 {isSensitiveLocked
-                  ? `Username dan NPP dapat diubah kembali setelah cooldown ${COOLDOWN_DAYS} hari berakhir.`
-                  : `Username dan NPP dapat diubah, namun hanya sekali setiap ${COOLDOWN_DAYS} hari.`}
+                  ? `NPP dapat diubah kembali setelah cooldown ${COOLDOWN_DAYS} hari berakhir.`
+                  : `NPP dapat diubah, namun hanya sekali setiap ${COOLDOWN_DAYS} hari.`}
               </p>
             </div>
+          </div>
+          
+          <div className="mt-6">
+            <SignatureUploader />
           </div>
         </div>
       </div>

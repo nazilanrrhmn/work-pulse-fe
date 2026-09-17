@@ -43,18 +43,6 @@ export function RegisterForm({
             <FieldError errors={[errors.name]} />
           </Field>
 
-          {/* Username */}
-          <Field>
-            <FieldLabel htmlFor="username">Username</FieldLabel>
-            <Input
-              {...register("username")}
-              id="username"
-              type="text"
-              placeholder="johndoe"
-            />
-            <FieldError errors={[errors.username]} />
-          </Field>
-
           {/* Email */}
           <Field>
             <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -71,10 +59,10 @@ export function RegisterForm({
           <Field>
             <FieldLabel htmlFor="npp">NPP</FieldLabel>
             <Input
-              {...register("npp", { valueAsNumber: true })}
+              {...register("npp")}
               id="npp"
-              type="number"
-              placeholder="123456"
+              type="text"
+              placeholder="K-0001"
             />
             <FieldError errors={[errors.npp]} />
           </Field>

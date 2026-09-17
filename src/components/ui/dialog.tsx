@@ -37,9 +37,9 @@ function DialogPopup({
   return (
     <Dialog.Popup
       className={cn(
-        "fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2",
-        "rounded-xl border border-border bg-card p-6 shadow-xl",
-        "transition-all duration-200",
+        "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 sm:w-full",
+        "rounded-xl border border-border bg-card p-5 shadow-xl sm:p-6",
+        "transition-all duration-200 max-h-[calc(100dvh-2rem)] overflow-y-auto",
         "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
         "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
         className,
