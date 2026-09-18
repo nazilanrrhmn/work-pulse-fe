@@ -13,12 +13,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ClipboardList } from "lucide-react";
 
 const leaveSchema = z.object({
   type: z.enum(["CUTI", "IZIN", "SAKIT"], {
-    required_error: "Pilih jenis izin",
+    message: "Pilih jenis izin",
   }),
   projectName: z.string().min(1, "Nama project harus diisi"),
 });
@@ -30,9 +36,9 @@ export interface LeaveData extends LeaveFormValues {
 }
 
 interface LeaveModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: LeaveData) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSubmit: (data: LeaveData) => void;
 }
 
 export default function LeaveModal({
@@ -109,10 +115,7 @@ export default function LeaveModal({
                 name="type"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
+                  <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger id="type" aria-invalid={!!errors.type}>
                       <SelectValue placeholder="Pilih jenis izin..." />
                     </SelectTrigger>

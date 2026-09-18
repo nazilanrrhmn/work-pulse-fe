@@ -12,6 +12,34 @@ export interface LeavePayloadDTO {
   projectName: string;
 }
 
+export interface AttendanceResponseDTO {
+  uuid: string;
+  date: string;
+  type: string;
+  clockIn: string | null;
+  clockOut: string | null;
+  isOvertime: boolean;
+  project: string | null;
+  activityDescription: string | null;
+}
+
+export interface PageableResponse<T> {
+  content: T[];
+  pageable: any;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface FetchAttendancesParams {
+  type?: string;
+  start_date?: string;
+  end_date?: string;
+  sort?: string;
+  order_by?: string;
+  limit?: number;
+  page?: number;
+}
+
 export const checkInPresence = createAsyncThunk<void, void>(
   "attendance/checkInPresence",
   async (_, thunkAPI) => {
@@ -59,6 +87,32 @@ export const submitLeave = createAsyncThunk<void, LeavePayloadDTO>(
         return thunkAPI.rejectWithValue(error.message);
       }
       return thunkAPI.rejectWithValue("Submit leave failed");
+    }
+  }
+);
+
+export const fetchAttendances = createAsyncThunk<PageableResponse<AttendanceResponseDTO>, FetchAttendancesParams | void>(
+  "attendance/fetchAttendances",
+  async (params, thunkAPI) => {
+    try {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        });
+      }
+      const response = await apiV1.get(`/attendances?${searchParams.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+         return thunkAPI.rejectWithValue(error.response.data.message);
+      }
+      if (error instanceof Error) {
+        return thunkAPI.rejectWithValue(error.message);
+      }
+      return thunkAPI.rejectWithValue("Failed to fetch attendances");
     }
   }
 );

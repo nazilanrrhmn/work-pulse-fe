@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { clockOutPresence, checkInPresence, submitLeave } from "./async";
+import { clockOutPresence, checkInPresence, submitLeave, fetchAttendances, type AttendanceResponseDTO } from "./async";
 
 export interface AttendanceState {
   isCheckedIn: boolean;
@@ -8,6 +8,13 @@ export interface AttendanceState {
   checkOutTime: string | null;
   loading: "idle" | "pending" | "succeeded" | "failed";
   error: string | null;
+  records: AttendanceResponseDTO[];
+  recordsLoading: boolean;
+  pagination: {
+    page: number;
+    totalPages: number;
+    totalElements: number;
+  };
 }
 
 const initialState: AttendanceState = {
@@ -17,6 +24,13 @@ const initialState: AttendanceState = {
   checkOutTime: null,
   loading: "idle",
   error: null,
+  records: [],
+  recordsLoading: false,
+  pagination: {
+    page: 1,
+    totalPages: 0,
+    totalElements: 0,
+  },
 };
 
 export const attendanceSlice = createSlice({
@@ -72,6 +86,23 @@ export const attendanceSlice = createSlice({
       })
       .addCase(submitLeave.rejected, (state, action) => {
         state.loading = "failed";
+        state.error = action.payload as string;
+      })
+      .addCase(fetchAttendances.pending, (state) => {
+        state.recordsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAttendances.fulfilled, (state, action) => {
+        state.recordsLoading = false;
+        state.records = action.payload.content;
+        state.pagination = {
+          page: action.payload.pageable?.pageNumber ? action.payload.pageable.pageNumber + 1 : 1, // Depending on if Spring is 0-indexed
+          totalPages: action.payload.totalPages,
+          totalElements: action.payload.totalElements,
+        };
+      })
+      .addCase(fetchAttendances.rejected, (state, action) => {
+        state.recordsLoading = false;
         state.error = action.payload as string;
       });
   },

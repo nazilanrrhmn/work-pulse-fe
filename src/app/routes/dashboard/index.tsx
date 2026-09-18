@@ -19,8 +19,9 @@ import LeaveModal, {
 } from "@/features/dashboard/components/leave-modal";
 import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
 import { setLocalCheckIn } from "@/stores/attendance/slice";
-import { checkInPresence, clockOutPresence, submitLeave } from "@/stores/attendance/async";
+import { checkInPresence, clockOutPresence, submitLeave, fetchAttendances } from "@/stores/attendance/async";
 import Swal from "sweetalert2";
+import { useEffect } from "react";
 
 // ── Skeleton placeholder untuk StatCard saat loading ──
 function StatCardSkeleton() {
@@ -42,12 +43,16 @@ export default function DashboardPage() {
 
   // ── Attendance state ──
   const dispatch = useAppDispatch();
-  const { isCheckedIn, isCheckedOut, checkInTime, loading } = useAppSelector(
+  const { isCheckedIn, isCheckedOut, checkInTime, loading, records, recordsLoading } = useAppSelector(
     (state) => state.attendance,
   );
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
+
+  useEffect(() => {
+    dispatch(fetchAttendances({ limit: 5 }));
+  }, [dispatch]);
 
   const handleCheckIn = useCallback(() => {
     const now = new Date().toISOString();
@@ -274,7 +279,7 @@ export default function DashboardPage() {
 
         {/* Right column */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-          <RecentActivity />
+          <RecentActivity data={records} loading={recordsLoading} />
         </div>
       </div>
 

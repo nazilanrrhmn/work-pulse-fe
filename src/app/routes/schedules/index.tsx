@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useAppSelector, useAppDispatch } from "@/hooks/use-store";
+import { fetchAttendances, type AttendanceResponseDTO } from "@/stores/attendance/async";
 import {
   ChevronLeft,
   ChevronRight,
@@ -6,6 +8,7 @@ import {
   CalendarX,
   Clock,
   AlertCircle,
+  FileDown,
 } from "lucide-react";
 import { cn } from "cn";
 
@@ -24,29 +27,12 @@ interface TimesheetRow {
 }
 
 // ── Mock data generator ────────────────────────────────────────────────────────
-function generateMonthData(year: number, month: number): TimesheetRow[] {
+function generateMonthData(year: number, month: number, records: AttendanceResponseDTO[] = []): TimesheetRow[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-  const mockProjects = [
-    "WorkPulse Development",
-    "Client Portal Redesign",
-    "Internal Tools Migration",
-    "Mobile App Revamp",
-  ];
-  const mockNotes = [
-    "Sprint planning & coding",
-    "Bug fix & review",
-    "Meeting & dokumentasi",
-    "Development & testing",
-    null,
-  ];
-
-  const seed = year * 100 + month;
-  const rng = (i: number) => ((seed * 9301 + 49297 * i) % 233280) / 233280;
 
   const today = new Date();
-  const isCurrentMonth =
-    year === today.getFullYear() && month === today.getMonth();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
@@ -56,6 +42,9 @@ function generateMonthData(year: number, month: number): TimesheetRow[] {
     const isToday = isCurrentMonth && day === today.getDate();
     const isFuture = date > today && !isToday;
 
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const record = records.find(r => r.date === dateStr);
+
     let status: AttendanceStatus = "empty";
     let checkIn: string | null = null;
     let checkOut: string | null = null;
@@ -63,34 +52,38 @@ function generateMonthData(year: number, month: number): TimesheetRow[] {
     let project: string | null = null;
     let notes: string | null = null;
 
-    if (isWeekend) {
-      status = "weekend";
-    } else if (isFuture) {
-      status = "empty";
-    } else {
-      const r = rng(i);
-      if (r < 0.05) {
-        status = "holiday";
-      } else if (r < 0.1) {
+    if (record) {
+      if (["CUTI", "IZIN", "SAKIT"].includes(record.type)) {
         status = "absent";
+        notes = `Pengajuan: ${record.type}`;
       } else {
         status = "present";
-        const h = 7 + Math.floor(rng(i + 50) * 2);
-        const m = Math.floor(rng(i + 100) * 60);
-        const endH = h + 8 + Math.floor(rng(i + 150) * 3);
-        const endM = Math.floor(rng(i + 200) * 60);
-        checkIn = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-        checkOut = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
-        const totalMin = (endH - h) * 60 + (endM - m);
-        const hrs = Math.floor(totalMin / 60);
-        const mins = totalMin % 60;
-        duration = `${hrs}j ${mins}m`;
-        project = mockProjects[Math.floor(rng(i + 250) * mockProjects.length)];
-        notes = mockNotes[Math.floor(rng(i + 300) * mockNotes.length)];
+        checkIn = record.clockIn ? record.clockIn.slice(0, 5) : null;
+        checkOut = record.clockOut ? record.clockOut.slice(0, 5) : null;
+        project = record.project;
+        notes = record.activityDescription;
+        if (record.isOvertime) {
+          notes = notes ? `${notes} (+ Lembur)` : "+ Lembur";
+        }
+        
+        // Calculate duration if possible
+        if (checkIn && checkOut) {
+          const start = new Date(`1970-01-01T${checkIn}:00`);
+          const end = new Date(`1970-01-01T${checkOut}:00`);
+          const diffMs = end.getTime() - start.getTime();
+          if (diffMs > 0) {
+            const hrs = Math.floor(diffMs / (1000 * 60 * 60));
+            const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            duration = `${hrs}j ${mins}m`;
+          }
+        }
       }
+    } else {
+      if (isWeekend) status = "weekend";
+      else if (isFuture) status = "empty";
+      else status = "empty"; // Could be marked absent, but empty is safer if they forgot to clock in
     }
 
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     return {
       date: dateStr,
       day: dayNames[dayOfWeek],
@@ -215,11 +208,22 @@ const MONTH_NAMES = [
 ];
 
 export default function TimesheetPage() {
+  const dispatch = useAppDispatch();
+  const { records, recordsLoading } = useAppSelector((state) => state.attendance);
+
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
 
-  const rows = useMemo(() => generateMonthData(year, month), [year, month]);
+  useEffect(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+    
+    dispatch(fetchAttendances({ start_date: startDate, end_date: endDate, limit: 100 }));
+  }, [year, month, dispatch]);
+
+  const rows = useMemo(() => generateMonthData(year, month, records), [year, month, records]);
 
   const goToPrev = () => {
     if (month === 0) {
@@ -253,30 +257,45 @@ export default function TimesheetPage() {
           </p>
         </div>
 
-        {/* Month Navigator */}
-        <div className="flex justify-center items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
+        <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-3">
+          {/* Month Navigator */}
+          <div className="flex justify-between sm:justify-center items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
+            <button
+              onClick={goToPrev}
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Bulan sebelumnya"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="flex-1 text-center text-sm font-semibold sm:min-w-[10rem]">
+              {MONTH_NAMES[month]} {year}
+            </span>
+            <button
+              onClick={goToNext}
+              disabled={isCurrentMonth}
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                isCurrentMonth
+                  ? "cursor-not-allowed opacity-30"
+                  : "hover:bg-muted hover:text-foreground",
+              )}
+              aria-label="Bulan berikutnya"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+
+          {/* Export Button */}
           <button
-            onClick={goToPrev}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Bulan sebelumnya"
+            type="button"
+            onClick={() => {
+              // TODO: Integrate with backend export endpoint
+              console.log("Export triggered for", year, month + 1);
+            }}
+            className="inline-flex h-10 w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted shadow-sm"
           >
-            <ChevronLeft className="size-4" />
-          </button>
-          <span className="min-w-[10rem] text-center text-sm font-semibold">
-            {MONTH_NAMES[month]} {year}
-          </span>
-          <button
-            onClick={goToNext}
-            disabled={isCurrentMonth}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors",
-              isCurrentMonth
-                ? "cursor-not-allowed opacity-30"
-                : "hover:bg-muted hover:text-foreground",
-            )}
-            aria-label="Bulan berikutnya"
-          >
-            <ChevronRight className="size-4" />
+            <FileDown className="size-4" />
+            <span>Export Laporan</span>
           </button>
         </div>
       </div>
