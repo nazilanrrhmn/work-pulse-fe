@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAppSelector, useAppDispatch } from "@/hooks/use-store";
 import {
   CalendarCheck,
@@ -23,10 +23,17 @@ import OvertimeModal, {
 } from "@/features/dashboard/components/overtime-modal";
 import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
 import { setLocalCheckIn } from "@/stores/attendance/slice";
-import { checkInPresence, clockOutPresence, submitLeave, fetchAttendances, fetchTodayAttendance, clockInOvertime, clockOutOvertime } from "@/stores/attendance/async";
+import {
+  checkInPresence,
+  clockOutPresence,
+  submitLeave,
+  fetchAttendances,
+  fetchTodayAttendance,
+  clockInOvertime,
+  clockOutOvertime,
+} from "@/stores/attendance/async";
 import { getDashboardSummary } from "@/stores/dashboard/async";
 import Swal from "sweetalert2";
-import { useEffect } from "react";
 
 // ── Skeleton placeholder untuk StatCard saat loading ──
 function StatCardSkeleton() {
@@ -48,13 +55,21 @@ export default function DashboardPage() {
 
   // ── Attendance state ──
   const dispatch = useAppDispatch();
-  const { isCheckedIn, isCheckedOut, isOnLeave, checkInTime, loading, records, recordsLoading, isOvertime, overtimeClockInTime } = useAppSelector(
-    (state) => state.attendance,
-  );
+  const {
+    isCheckedIn,
+    isCheckedOut,
+    isOnLeave,
+    checkInTime,
+    records,
+    recordsLoading,
+    isOvertime,
+    overtimeClockInTime,
+  } = useAppSelector((state) => state.attendance);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showOvertimeModal, setShowOvertimeModal] = useState(false);
-  const [isOvertimeReadyToClockOut, setIsOvertimeReadyToClockOut] = useState(false);
+  const [isOvertimeReadyToClockOut, setIsOvertimeReadyToClockOut] =
+    useState(false);
 
   const currentYear = new Date().getFullYear();
   const { nationalHolidaySet, jointLeaveSet } = useHolidays(currentYear);
@@ -71,7 +86,8 @@ export default function DashboardPage() {
       const isWeekend = day === 0 || day === 6;
 
       const dateStr = clockInDate.toISOString().split("T")[0];
-      const isHoliday = nationalHolidaySet.has(dateStr) || jointLeaveSet.has(dateStr);
+      const isHoliday =
+        nationalHolidaySet.has(dateStr) || jointLeaveSet.has(dateStr);
 
       const isOffDay = isWeekend || isHoliday;
       const thresholdHours = isOffDay ? 8 : 3;
@@ -195,7 +211,7 @@ export default function DashboardPage() {
           });
         });
     },
-    [dispatch]
+    [dispatch],
   );
 
   const handleCheckoutSubmit = useCallback(
@@ -203,11 +219,6 @@ export default function DashboardPage() {
       setShowCheckoutModal(false);
 
       if (!user?.uuid || !checkInTime) return;
-
-      const dateObj = new Date(checkInTime);
-      const year = dateObj.getFullYear();
-      const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-      const day = String(dateObj.getDate()).padStart(2, "0");
 
       const payload = {
         projectName: data.projectName,

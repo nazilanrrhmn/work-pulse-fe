@@ -19,11 +19,15 @@ const data = [
   { day: "Sel 9", hours: 8 },
 ];
 
-interface TooltipPayload {
-  payload?: { hours: number; isHoliday?: boolean };
-}
-
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; payload: { isHoliday?: boolean } }[]; label?: string }) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { value: number; payload: { isHoliday?: boolean } }[];
+  label?: string;
+}) {
   if (!active || !payload?.length) return null;
   const isHoliday = payload[0]?.payload?.isHoliday;
   return (
@@ -51,7 +55,9 @@ export default function WorkHoursChart() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold">Jam Kerja Harian</h3>
-          <p className="text-xs text-muted-foreground">9 Sep 2026 — 2 minggu terakhir</p>
+          <p className="text-xs text-muted-foreground">
+            9 Sep 2026 — 2 minggu terakhir
+          </p>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
@@ -66,8 +72,15 @@ export default function WorkHoursChart() {
       </div>
 
       <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+        <BarChart
+          data={data}
+          margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="hsl(var(--border))"
+            vertical={false}
+          />
           <XAxis
             dataKey="day"
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -80,12 +93,20 @@ export default function WorkHoursChart() {
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted))", radius: 4 }} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ fill: "hsl(var(--muted))", radius: 4 }}
+          />
           <ReferenceLine
             y={8}
             stroke="hsl(var(--muted-foreground))"
             strokeDasharray="4 4"
-            label={{ value: "8j", position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            label={{
+              value: "8j",
+              position: "right",
+              fontSize: 10,
+              fill: "hsl(var(--muted-foreground))",
+            }}
           />
           <Bar
             dataKey="hours"

@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAppSelector, useAppDispatch } from "@/hooks/use-store";
-import { fetchAttendances, type AttendanceResponseDTO } from "@/stores/attendance/async";
+import {
+  fetchAttendances,
+  type AttendanceResponseDTO,
+} from "@/stores/attendance/async";
 import {
   ChevronLeft,
   ChevronRight,
@@ -30,25 +33,24 @@ interface TimesheetRow {
 }
 
 // ── Mock data generator ────────────────────────────────────────────────────────
-function generateMonthData(year: number, month: number, records: AttendanceResponseDTO[] = []): TimesheetRow[] {
+function generateMonthData(
+  year: number,
+  month: number,
+  records: AttendanceResponseDTO[] = [],
+): TimesheetRow[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-
-  const today = new Date();
-  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
     const date = new Date(year, month, day);
     const dayOfWeek = date.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const isToday = isCurrentMonth && day === today.getDate();
-    const isFuture = date > today && !isToday;
 
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const record = records.find(r => r.date === dateStr);
+    const record = records.find((r) => r.date === dateStr);
 
-    let status: AttendanceStatus = "empty";
+    let status: AttendanceStatus;
     let checkIn: string | null = null;
     let checkOut: string | null = null;
     let duration: string | null = null;
@@ -62,13 +64,16 @@ function generateMonthData(year: number, month: number, records: AttendanceRespo
       } else {
         status = "present";
         checkIn = record.clockIn ? record.clockIn.slice(0, 5) : null;
-        checkOut = (record.overtimeClockOut || record.clockOut) ? (record.overtimeClockOut || record.clockOut)!.slice(0, 5) : null;
+        checkOut =
+          record.overtimeClockOut || record.clockOut
+            ? (record.overtimeClockOut || record.clockOut)!.slice(0, 5)
+            : null;
         project = record.project;
         notes = record.activityDescription;
         if (record.overtime) {
           notes = notes ? `${notes} (+ Lembur)` : "+ Lembur";
         }
-        
+
         // Calculate duration if possible
         if (checkIn && checkOut) {
           const start = new Date(`1970-01-01T${checkIn}:00`);
@@ -81,10 +86,10 @@ function generateMonthData(year: number, month: number, records: AttendanceRespo
           }
         }
       }
+    } else if (isWeekend) {
+      status = "weekend";
     } else {
-      if (isWeekend) status = "weekend";
-      else if (isFuture) status = "empty";
-      else status = "empty"; // Could be marked absent, but empty is safer if they forgot to clock in
+      status = "empty";
     }
 
     return {
@@ -101,7 +106,7 @@ function generateMonthData(year: number, month: number, records: AttendanceRespo
 }
 
 // ── Status Badge ───────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: AttendanceStatus }) {
+function StatusBadge({ status }: { readonly status: AttendanceStatus }) {
   const config: Record<AttendanceStatus, { label: string; className: string }> =
     {
       present: {
@@ -143,7 +148,7 @@ function StatusBadge({ status }: { status: AttendanceStatus }) {
 }
 
 // ── Summary Stats ──────────────────────────────────────────────────────────────
-function SummaryBar({ rows }: { rows: TimesheetRow[] }) {
+function SummaryBar({ rows }: { readonly rows: TimesheetRow[] }) {
   const workDays = rows.filter((r) => r.status !== "weekend").length;
   const present = rows.filter((r) => r.status === "present").length;
   const absent = rows.filter((r) => r.status === "absent").length;
@@ -212,7 +217,9 @@ const MONTH_NAMES = [
 
 export default function TimesheetPage() {
   const dispatch = useAppDispatch();
-  const { records, recordsLoading } = useAppSelector((state) => state.attendance);
+  const { records, recordsLoading } = useAppSelector(
+    (state) => state.attendance,
+  );
 
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -223,11 +230,20 @@ export default function TimesheetPage() {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
     const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
-    
-    dispatch(fetchAttendances({ start_date: startDate, end_date: endDate, limit: 100 }));
+
+    dispatch(
+      fetchAttendances({
+        start_date: startDate,
+        end_date: endDate,
+        limit: 100,
+      }),
+    );
   }, [year, month, dispatch]);
 
-  const rows = useMemo(() => generateMonthData(year, month, records), [year, month, records]);
+  const rows = useMemo(
+    () => generateMonthData(year, month, records),
+    [year, month, records],
+  );
 
   const goToPrev = () => {
     if (month === 0) {
@@ -267,9 +283,11 @@ export default function TimesheetPage() {
 
       const contentDisposition = response.headers["content-disposition"];
       let filename = `timesheet-${year}-${String(month + 1).padStart(2, "0")}.xlsx`;
+
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (filenameMatch && filenameMatch.length === 2) {
+
+        if (filenameMatch?.[1]) {
           filename = filenameMatch[1];
         }
       }

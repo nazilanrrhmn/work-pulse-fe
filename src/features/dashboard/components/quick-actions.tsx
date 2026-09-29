@@ -1,5 +1,4 @@
 import { LogIn, LogOut, FileDown, Clock, CheckCircle } from "lucide-react";
-import { Link } from "react-router-dom";
 import { cn } from "cn";
 
 interface QuickActionsProps {
@@ -67,16 +66,21 @@ export default function QuickActions({
                   : "bg-primary/10 text-primary",
             )}
           >
-            {isCheckedIn
-              ? <CheckCircle className="size-6" />
-              : <LogIn className="size-6" />
-            }
+            {isCheckedIn ? (
+              <CheckCircle className="size-6" />
+            ) : (
+              <LogIn className="size-6" />
+            )}
           </div>
           <div className="text-center">
-            <p className={cn(
-              "text-sm font-semibold leading-tight",
-              isCheckedIn ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
-            )}>
+            <p
+              className={cn(
+                "text-sm font-semibold leading-tight",
+                isCheckedIn
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-foreground",
+              )}
+            >
               {isCheckedIn ? "Sudah Check-in" : "Check-in"}
             </p>
             {isCheckedIn && (
@@ -102,7 +106,7 @@ export default function QuickActions({
             "flex flex-col items-center justify-center gap-2 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[96px]",
             isCheckedOut
               ? "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : (!isCheckedIn || isOnLeave)
+              : !isCheckedIn || isOnLeave
                 ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
                 : "border-border bg-card hover:border-primary/40 hover:shadow-md cursor-pointer active:scale-95",
           )}
@@ -112,21 +116,26 @@ export default function QuickActions({
               "flex size-11 items-center justify-center rounded-xl",
               isCheckedOut
                 ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                : (!isCheckedIn || isOnLeave)
+                : !isCheckedIn || isOnLeave
                   ? "bg-muted text-muted-foreground"
                   : "bg-primary/10 text-primary",
             )}
           >
-            {isCheckedOut
-              ? <CheckCircle className="size-6" />
-              : <LogOut className="size-6" />
-            }
+            {isCheckedOut ? (
+              <CheckCircle className="size-6" />
+            ) : (
+              <LogOut className="size-6" />
+            )}
           </div>
           <div className="text-center">
-            <p className={cn(
-              "text-sm font-semibold leading-tight",
-              isCheckedOut ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
-            )}>
+            <p
+              className={cn(
+                "text-sm font-semibold leading-tight",
+                isCheckedOut
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-foreground",
+              )}
+            >
               {isCheckedOut ? "Sudah Check-out" : "Check-out"}
             </p>
             {isCheckedOut && (
@@ -151,7 +160,12 @@ export default function QuickActions({
         {/* Overtime card */}
         <button
           type="button"
-          disabled={!isCheckedOut || (isOvertime && !isOvertimeReadyToClockOut) || isOvertimeDone || isOnLeave}
+          disabled={
+            !isCheckedOut ||
+            (isOvertime && !isOvertimeReadyToClockOut) ||
+            isOvertimeDone ||
+            isOnLeave
+          }
           onClick={onOvertime}
           className={cn(
             "col-span-2 flex items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[72px]",
@@ -160,10 +174,10 @@ export default function QuickActions({
               : isOnLeave
                 ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
                 : isOvertime
-                  ? (isOvertimeReadyToClockOut 
-                    ? "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95" 
-                    : "cursor-default border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20")
-                  : (!isCheckedOut)
+                  ? isOvertimeReadyToClockOut
+                    ? "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95"
+                    : "cursor-default border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
+                  : !isCheckedOut
                     ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
                     : "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95",
           )}
@@ -177,33 +191,51 @@ export default function QuickActions({
                   ? "bg-muted text-muted-foreground"
                   : isOvertime
                     ? "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400"
-                    : (!isCheckedOut)
+                    : !isCheckedOut
                       ? "bg-muted text-muted-foreground"
                       : "bg-amber-500/10 text-amber-500",
             )}
           >
-            {isOvertimeDone ? <CheckCircle className="size-5" /> : (isOvertime && !isOvertimeReadyToClockOut) ? <Clock className="size-5" /> : <Clock className="size-5" />}
+            {isOvertimeDone ? (
+              <CheckCircle className="size-5" />
+            ) : isOvertime && !isOvertimeReadyToClockOut ? (
+              <Clock className="size-5" />
+            ) : (
+              <Clock className="size-5" />
+            )}
           </div>
           <div className="text-left flex-1">
-            <p className={cn(
-              "text-sm font-semibold leading-tight",
-              isOvertimeDone ? "text-emerald-700 dark:text-emerald-400" : isOvertime ? "text-amber-700 dark:text-amber-400" : "text-foreground",
-            )}>
-              {isOvertimeDone 
-                ? "Lembur Selesai" 
-                : isOvertime 
-                  ? (isOvertimeReadyToClockOut ? "Selesai Lembur" : "Lembur Aktif") 
+            <p
+              className={cn(
+                "text-sm font-semibold leading-tight",
+                isOvertimeDone
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : isOvertime
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-foreground",
+              )}
+            >
+              {isOvertimeDone
+                ? "Lembur Selesai"
+                : isOvertime
+                  ? isOvertimeReadyToClockOut
+                    ? "Selesai Lembur"
+                    : "Lembur Aktif"
                   : "Mulai Lembur"}
             </p>
-            
+
             <p className="mt-0.5 text-xs text-muted-foreground">
               {isOnLeave
                 ? "Tidak bisa lembur karena izin/cuti"
                 : isOvertimeDone
                   ? "Terima kasih sudah lembur hari ini"
                   : isOvertime
-                    ? (isOvertimeReadyToClockOut ? "Klik untuk mengakhiri lembur" : "Menunggu waktu minimum...")
-                    : (isCheckedOut ? "Catat waktu lembur Anda" : "Check-out dulu")}
+                    ? isOvertimeReadyToClockOut
+                      ? "Klik untuk mengakhiri lembur"
+                      : "Menunggu waktu minimum..."
+                    : isCheckedOut
+                      ? "Catat waktu lembur Anda"
+                      : "Check-out dulu"}
             </p>
           </div>
         </button>
@@ -232,13 +264,21 @@ export default function QuickActions({
                   : "bg-blue-500/10 text-blue-500",
             )}
           >
-            {isOnLeave ? <CheckCircle className="size-5" /> : <FileDown className="size-5" />}
+            {isOnLeave ? (
+              <CheckCircle className="size-5" />
+            ) : (
+              <FileDown className="size-5" />
+            )}
           </div>
           <div className="text-left flex-1">
-            <p className={cn(
-              "text-sm font-semibold leading-tight",
-              isOnLeave ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
-            )}>
+            <p
+              className={cn(
+                "text-sm font-semibold leading-tight",
+                isOnLeave
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-foreground",
+              )}
+            >
               {isOnLeave ? "Izin / Cuti Terkirim" : "Izin / Cuti"}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -268,8 +308,16 @@ export default function QuickActions({
                 : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
           )}
         >
-          {isCheckedIn ? <CheckCircle className="size-4" /> : <LogIn className="size-4" />}
-          {isCheckedIn ? `Check-in: ${formatTime(checkInTime)}` : isOnLeave ? "Izin/Cuti Aktif" : "Check-in Sekarang"}
+          {isCheckedIn ? (
+            <CheckCircle className="size-4" />
+          ) : (
+            <LogIn className="size-4" />
+          )}
+          {isCheckedIn
+            ? `Check-in: ${formatTime(checkInTime)}`
+            : isOnLeave
+              ? "Izin/Cuti Aktif"
+              : "Check-in Sekarang"}
         </button>
 
         {/* Check-out */}
@@ -281,19 +329,30 @@ export default function QuickActions({
             "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
             isCheckedOut
               ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-              : (!isCheckedIn || isOnLeave)
+              : !isCheckedIn || isOnLeave
                 ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
                 : "border-border bg-background hover:bg-muted text-foreground shadow-sm",
           )}
         >
-          {isCheckedOut ? <CheckCircle className="size-4" /> : <LogOut className="size-4" />}
-          {isCheckedOut ? `Check-out: ${formatTime(checkOutTime)}` : "Check-out"}
+          {isCheckedOut ? (
+            <CheckCircle className="size-4" />
+          ) : (
+            <LogOut className="size-4" />
+          )}
+          {isCheckedOut
+            ? `Check-out: ${formatTime(checkOutTime)}`
+            : "Check-out"}
         </button>
 
         {/* Overtime */}
         <button
           type="button"
-          disabled={!isCheckedOut || (isOvertime && !isOvertimeReadyToClockOut) || isOvertimeDone || isOnLeave}
+          disabled={
+            !isCheckedOut ||
+            (isOvertime && !isOvertimeReadyToClockOut) ||
+            isOvertimeDone ||
+            isOnLeave
+          }
           onClick={onOvertime}
           className={cn(
             "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
@@ -302,19 +361,25 @@ export default function QuickActions({
               : isOnLeave
                 ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
                 : isOvertime
-                  ? (isOvertimeReadyToClockOut
+                  ? isOvertimeReadyToClockOut
                     ? "border-amber-200 bg-background hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 shadow-sm"
-                    : "cursor-default border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300")
-                  : (!isCheckedOut)
+                    : "cursor-default border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                  : !isCheckedOut
                     ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
                     : "border-border bg-background hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 shadow-sm",
           )}
         >
-          {isOvertimeDone ? <CheckCircle className="size-4" /> : <Clock className="size-4" />}
-          {isOvertimeDone 
-            ? "Lembur Selesai" 
-            : isOvertime 
-              ? (isOvertimeReadyToClockOut ? "Selesai Lembur" : "Lembur Aktif") 
+          {isOvertimeDone ? (
+            <CheckCircle className="size-4" />
+          ) : (
+            <Clock className="size-4" />
+          )}
+          {isOvertimeDone
+            ? "Lembur Selesai"
+            : isOvertime
+              ? isOvertimeReadyToClockOut
+                ? "Selesai Lembur"
+                : "Lembur Aktif"
               : "Lembur"}
         </button>
 
@@ -332,7 +397,11 @@ export default function QuickActions({
                 : "border-border bg-background hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400 shadow-sm",
           )}
         >
-          {isOnLeave ? <CheckCircle className="size-4" /> : <FileDown className="size-4" />}
+          {isOnLeave ? (
+            <CheckCircle className="size-4" />
+          ) : (
+            <FileDown className="size-4" />
+          )}
           {isOnLeave ? "Izin/Cuti Terkirim" : "Izin / Cuti"}
         </button>
       </div>

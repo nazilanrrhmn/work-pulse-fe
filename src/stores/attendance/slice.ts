@@ -1,5 +1,14 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { clockOutPresence, checkInPresence, submitLeave, fetchAttendances, fetchTodayAttendance, clockInOvertime, clockOutOvertime, type AttendanceResponseDTO } from "./async";
+import {
+  clockOutPresence,
+  checkInPresence,
+  submitLeave,
+  fetchAttendances,
+  fetchTodayAttendance,
+  clockInOvertime,
+  clockOutOvertime,
+  type AttendanceResponseDTO,
+} from "./async";
 
 export interface AttendanceState {
   isCheckedIn: boolean;
@@ -20,7 +29,16 @@ export interface AttendanceState {
   };
 }
 
-const LEAVE_TYPES = ["SICK", "ANNUAL", "PERMISSION", "OTHER", "LEAVE", "CUTI", "SAKIT", "IZIN"];
+const LEAVE_TYPES = [
+  "SICK",
+  "ANNUAL",
+  "PERMISSION",
+  "OTHER",
+  "LEAVE",
+  "CUTI",
+  "SAKIT",
+  "IZIN",
+];
 
 const initialState: AttendanceState = {
   isCheckedIn: false,
@@ -59,7 +77,7 @@ export const attendanceSlice = createSlice({
       state.overtimeClockInTime = null;
       state.loading = "idle";
       state.error = null;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -75,9 +93,9 @@ export const attendanceSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      .addCase(checkInPresence.pending, (state) => {
+      .addCase(checkInPresence.pending, (state, action) => {
         state.loading = "pending";
-        state.error = undefined;
+        state.error = action.payload as string;
       })
       .addCase(checkInPresence.fulfilled, (state) => {
         state.loading = "succeeded";
@@ -106,7 +124,10 @@ export const attendanceSlice = createSlice({
         state.loading = "succeeded";
         if (action.payload) {
           // Detect leave from today's attendance type
-          if (action.payload.type && LEAVE_TYPES.includes(action.payload.type.toUpperCase())) {
+          if (
+            action.payload.type &&
+            LEAVE_TYPES.includes(action.payload.type.toUpperCase())
+          ) {
             state.isOnLeave = true;
           }
           if (action.payload.clockIn) {
@@ -166,7 +187,9 @@ export const attendanceSlice = createSlice({
         state.recordsLoading = false;
         state.records = action.payload.content;
         state.pagination = {
-          page: action.payload.pageable?.pageNumber ? action.payload.pageable.pageNumber + 1 : 1, // Depending on if Spring is 0-indexed
+          page: action.payload.pageable?.pageNumber
+            ? action.payload.pageable.pageNumber + 1
+            : 1, // Depending on if Spring is 0-indexed
           totalPages: action.payload.totalPages,
           totalElements: action.payload.totalElements,
         };

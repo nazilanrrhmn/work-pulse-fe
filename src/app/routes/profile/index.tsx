@@ -6,8 +6,6 @@ import {
   Phone,
   Mail,
   Hash,
-  Clock,
-  Lock,
   Building,
   Building2,
   Briefcase,
@@ -19,7 +17,6 @@ import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { cn } from "cn";
 
 import Avatar from "@/features/profile/components/avatar";
-import CooldownBadge from "@/features/profile/components/cooldown-badge";
 import InfoRow from "@/features/profile/components/info-row";
 import SignatureUploader from "@/features/profile/components/signature-uploader";
 import { useProfileForm } from "@/features/profile/hooks/use-profile-form";
@@ -114,8 +111,6 @@ export default function ProfilePage() {
               <InfoRow icon={Hash} label="NPP" value={profileData.npp} />
             </div>
           </div>
-
-
         </div>
 
         {/* ── Right: Edit Form ── */}
@@ -177,7 +172,10 @@ export default function ProfilePage() {
             >
               {/* Name */}
               <Field className="sm:col-span-2">
-                <FieldLabel htmlFor="name" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="name"
+                  className="flex items-center gap-1.5"
+                >
                   <User className="size-3.5 text-muted-foreground" />
                   Nama Lengkap
                 </FieldLabel>
@@ -194,7 +192,10 @@ export default function ProfilePage() {
 
               {/* Email */}
               <Field>
-                <FieldLabel htmlFor="email" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="email"
+                  className="flex items-center gap-1.5"
+                >
                   <Mail className="size-3.5 text-muted-foreground" />
                   Email
                 </FieldLabel>
@@ -212,7 +213,10 @@ export default function ProfilePage() {
 
               {/* No HP */}
               <Field>
-                <FieldLabel htmlFor="noHp" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="noHp"
+                  className="flex items-center gap-1.5"
+                >
                   <Phone className="size-3.5 text-muted-foreground" />
                   No. HP / WhatsApp
                 </FieldLabel>
@@ -227,8 +231,6 @@ export default function ProfilePage() {
                 />
                 <FieldError>{errors.noHp?.message}</FieldError>
               </Field>
-
-
 
               {/* NPP */}
               <Field>
@@ -248,7 +250,10 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="nppBni" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="nppBni"
+                  className="flex items-center gap-1.5"
+                >
                   <Hash className="size-3.5 text-muted-foreground" /> NPP BNI
                 </FieldLabel>
                 <Input
@@ -264,7 +269,10 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="manager" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="manager"
+                  className="flex items-center gap-1.5"
+                >
                   <User className="size-3.5 text-muted-foreground" /> Manager
                 </FieldLabel>
                 <Input
@@ -279,8 +287,12 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="departemenHead" className="flex items-center gap-1.5">
-                  <Briefcase className="size-3.5 text-muted-foreground" /> Departemen Head
+                <FieldLabel
+                  htmlFor="departemenHead"
+                  className="flex items-center gap-1.5"
+                >
+                  <Briefcase className="size-3.5 text-muted-foreground" />{" "}
+                  Departemen Head
                 </FieldLabel>
                 <Input
                   id="departemenHead"
@@ -294,8 +306,12 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="divisi" className="flex items-center gap-1.5">
-                  <Building2 className="size-3.5 text-muted-foreground" /> Divisi
+                <FieldLabel
+                  htmlFor="divisi"
+                  className="flex items-center gap-1.5"
+                >
+                  <Building2 className="size-3.5 text-muted-foreground" />{" "}
+                  Divisi
                 </FieldLabel>
                 <Input
                   id="divisi"
@@ -309,8 +325,12 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="departemen" className="flex items-center gap-1.5">
-                  <Building className="size-3.5 text-muted-foreground" /> Departemen
+                <FieldLabel
+                  htmlFor="departemen"
+                  className="flex items-center gap-1.5"
+                >
+                  <Building className="size-3.5 text-muted-foreground" />{" "}
+                  Departemen
                 </FieldLabel>
                 <Input
                   id="departemen"
@@ -324,7 +344,10 @@ export default function ProfilePage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="kelompok" className="flex items-center gap-1.5">
+                <FieldLabel
+                  htmlFor="kelompok"
+                  className="flex items-center gap-1.5"
+                >
                   <Users className="size-3.5 text-muted-foreground" /> Kelompok
                 </FieldLabel>
                 <Input
@@ -338,10 +361,8 @@ export default function ProfilePage() {
                 <FieldError>{errors.kelompok?.message}</FieldError>
               </Field>
             </form>
-
-
           </div>
-          
+
           <div className="mt-6">
             <SignatureUploader />
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "cn";
 import {
@@ -60,7 +60,13 @@ function NavLink({
 }
 
 // ── Desktop Sidebar ────────────────────────────────────────────────────────────
-function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function DesktopSidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const location = useLocation();
   return (
     <aside
@@ -123,7 +129,13 @@ function DesktopSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 }
 
 // ── Mobile Drawer ──────────────────────────────────────────────────────────────
-function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function MobileDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   // Close on escape
   useEffect(() => {
     if (!open) return;
@@ -137,7 +149,9 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
   // Prevent body scroll when open
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   return (
@@ -190,7 +204,12 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
         {/* Nav Items */}
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
           {navItems.map((item) => (
-            <NavLink key={item.to} item={item} collapsed={false} onClick={onClose} />
+            <NavLink
+              key={item.to}
+              item={item}
+              collapsed={false}
+              onClick={onClose}
+            />
           ))}
         </nav>
 
