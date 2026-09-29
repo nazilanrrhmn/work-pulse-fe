@@ -217,7 +217,7 @@ const MONTH_NAMES = [
 
 export default function TimesheetPage() {
   const dispatch = useAppDispatch();
-  const { records, recordsLoading } = useAppSelector(
+  const { records } = useAppSelector(
     (state) => state.attendance,
   );
 

@@ -93,9 +93,9 @@ export const attendanceSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      .addCase(checkInPresence.pending, (state, action) => {
+      .addCase(checkInPresence.pending, (state) => {
         state.loading = "pending";
-        state.error = action.payload as string;
+        state.error = undefined;
       })
       .addCase(checkInPresence.fulfilled, (state) => {
         state.loading = "succeeded";

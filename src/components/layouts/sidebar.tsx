@@ -67,7 +67,6 @@ function DesktopSidebar({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const location = useLocation();
   return (
     <aside
       className={cn(
