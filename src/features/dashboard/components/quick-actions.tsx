@@ -1,21 +1,138 @@
-import { LogIn, LogOut, FileDown, Clock, CheckCircle } from "lucide-react";
+import {
+  LogIn,
+  LogOut,
+  FileDown,
+  Clock,
+  CheckCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "cn";
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 interface QuickActionsProps {
-  isCheckedIn: boolean;
-  isCheckedOut: boolean;
-  isOnLeave: boolean;
-  checkInTime: Date | null;
-  checkOutTime: Date | null;
-  isOvertime: boolean;
-  isOvertimeReadyToClockOut?: boolean;
-  isOvertimeDone?: boolean;
-  onCheckIn: () => void;
-  onCheckOut: () => void;
-  onOvertime: () => void;
-  onLeave: () => void;
+  readonly isCheckedIn: boolean;
+  readonly isCheckedOut: boolean;
+  readonly isOnLeave: boolean;
+  readonly checkInTime: Date | null;
+  readonly checkOutTime: Date | null;
+  readonly isOvertime: boolean;
+  readonly isOvertimeReadyToClockOut?: boolean;
+  readonly isOvertimeDone?: boolean;
+  readonly onCheckIn: () => void;
+  readonly onCheckOut: () => void;
+  readonly onOvertime: () => void;
+  readonly onLeave: () => void;
 }
 
+/**
+ * done      → aksi sudah selesai
+ * disabled  → belum/tidak bisa dilakukan
+ * active    → sedang berjalan (lembur menunggu waktu minimum)
+ * ready     → sedang berjalan dan sudah bisa diselesaikan
+ * available → bisa dilakukan sekarang
+ */
+type ActionState = "done" | "disabled" | "active" | "ready" | "available";
+type Accent = "primary" | "neutral" | "amber" | "blue";
+type Layout = "compact" | "wide";
+
+interface ActionView {
+  readonly id: string;
+  readonly state: ActionState;
+  readonly accent: Accent;
+  readonly layout: Layout;
+  readonly icon: LucideIcon;
+  readonly label: string;
+  readonly desktopLabel: string;
+  readonly time?: string;
+  readonly hint?: string;
+  readonly onClick: () => void;
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
+interface StateStyles {
+  readonly done: string;
+  readonly disabled: string;
+  readonly active: string;
+  readonly ready: string;
+  readonly available: Record<Accent, string>;
+}
+
+function resolveStyle(
+  styles: StateStyles,
+  state: ActionState,
+  accent: Accent,
+): string {
+  return state === "available" ? styles.available[accent] : styles[state];
+}
+
+const CARD_AVAILABLE_BASE =
+  "border-border bg-card hover:shadow-md cursor-pointer active:scale-95";
+const CARD_AVAILABLE_PRIMARY = `${CARD_AVAILABLE_BASE} hover:border-primary/40`;
+const CARD_AVAILABLE_AMBER = `${CARD_AVAILABLE_BASE} hover:border-amber-500/40`;
+const CARD_AVAILABLE_BLUE = `${CARD_AVAILABLE_BASE} hover:border-blue-500/40`;
+
+const CARD_STYLES: StateStyles = {
+  done: "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20",
+  disabled: "cursor-not-allowed border-border/50 bg-muted/30 opacity-50",
+  active:
+    "cursor-default border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20",
+  ready: CARD_AVAILABLE_AMBER,
+  available: {
+    primary: CARD_AVAILABLE_PRIMARY,
+    neutral: CARD_AVAILABLE_PRIMARY,
+    amber: CARD_AVAILABLE_AMBER,
+    blue: CARD_AVAILABLE_BLUE,
+  },
+};
+
+const AMBER_ICON_BOX =
+  "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400";
+
+const ICON_BOX_STYLES: StateStyles = {
+  done: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400",
+  disabled: "bg-muted text-muted-foreground",
+  active: AMBER_ICON_BOX,
+  ready: AMBER_ICON_BOX,
+  available: {
+    primary: "bg-primary/10 text-primary",
+    neutral: "bg-primary/10 text-primary",
+    amber: "bg-amber-500/10 text-amber-500",
+    blue: "bg-blue-500/10 text-blue-500",
+  },
+};
+
+const TITLE_STYLES: Partial<Record<ActionState, string>> = {
+  done: "text-emerald-700 dark:text-emerald-400",
+  active: "text-amber-700 dark:text-amber-400",
+  ready: "text-amber-700 dark:text-amber-400",
+};
+
+const BUTTON_AVAILABLE_BASE = "border-border bg-background shadow-sm";
+const BUTTON_AVAILABLE_AMBER = `${BUTTON_AVAILABLE_BASE} hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400`;
+const BUTTON_AVAILABLE_NEUTRAL = `${BUTTON_AVAILABLE_BASE} text-foreground hover:bg-muted`;
+
+const BUTTON_STYLES: StateStyles = {
+  done: "cursor-default border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300",
+  disabled:
+    "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground",
+  active:
+    "cursor-default border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  ready: `${BUTTON_AVAILABLE_AMBER} border-amber-200`,
+  available: {
+    primary:
+      "border-transparent bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+    neutral: BUTTON_AVAILABLE_NEUTRAL,
+    amber: BUTTON_AVAILABLE_AMBER,
+    blue: `${BUTTON_AVAILABLE_BASE} hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400`,
+  },
+};
+
+const COMPACT_CARD_BASE =
+  "flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-xl border p-4 shadow-sm transition-all duration-200";
+const WIDE_CARD_BASE =
+  "col-span-2 flex min-h-[72px] items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function formatTime(date: Date | null): string {
   if (!date) return "--:--";
   return date.toLocaleTimeString("id-ID", {
@@ -24,386 +141,232 @@ function formatTime(date: Date | null): string {
   });
 }
 
-export default function QuickActions({
-  isCheckedIn,
-  isCheckedOut,
-  isOnLeave,
-  checkInTime,
-  checkOutTime,
-  isOvertime,
-  isOvertimeReadyToClockOut,
-  isOvertimeDone,
-  onCheckIn,
-  onCheckOut,
-  onOvertime,
-  onLeave,
-}: QuickActionsProps) {
+const isEnabled = (state: ActionState) =>
+  state === "available" || state === "ready";
+
+// ── View builders (satu fungsi per aksi, tanpa nested ternary) ─────────────────
+function getCheckInView(p: QuickActionsProps): ActionView {
+  let state: ActionState = "available";
+  if (p.isCheckedIn) state = "done";
+  else if (p.isOnLeave) state = "disabled";
+
+  let desktopLabel = "Check-in Sekarang";
+  if (state === "done") desktopLabel = `Check-in: ${formatTime(p.checkInTime)}`;
+  else if (state === "disabled") desktopLabel = "Izin/Cuti Aktif";
+
+  return {
+    id: "check-in",
+    state,
+    accent: "primary",
+    layout: "compact",
+    icon: LogIn,
+    label: state === "done" ? "Sudah Check-in" : "Check-in",
+    desktopLabel,
+    time: state === "done" ? formatTime(p.checkInTime) : undefined,
+    hint: state === "disabled" ? "Hari ini izin/cuti" : undefined,
+    onClick: p.onCheckIn,
+  };
+}
+
+function getCheckOutView(p: QuickActionsProps): ActionView {
+  let state: ActionState = "available";
+  if (p.isCheckedOut) state = "done";
+  else if (!p.isCheckedIn || p.isOnLeave) state = "disabled";
+
+  let hint: string | undefined;
+  if (state === "disabled") {
+    hint = p.isOnLeave ? "Hari ini izin/cuti" : "Check-in dulu";
+  }
+
+  return {
+    id: "check-out",
+    state,
+    accent: "neutral",
+    layout: "compact",
+    icon: LogOut,
+    label: state === "done" ? "Sudah Check-out" : "Check-out",
+    desktopLabel:
+      state === "done"
+        ? `Check-out: ${formatTime(p.checkOutTime)}`
+        : "Check-out",
+    time: state === "done" ? formatTime(p.checkOutTime) : undefined,
+    hint,
+    onClick: p.onCheckOut,
+  };
+}
+
+function getOvertimeState(p: QuickActionsProps): ActionState {
+  if (p.isOvertimeDone) return "done";
+  if (p.isOnLeave || !p.isCheckedOut) return "disabled";
+  if (p.isOvertime) return p.isOvertimeReadyToClockOut ? "ready" : "active";
+  return "available";
+}
+
+const OVERTIME_TEXT: Record<
+  ActionState,
+  { label: string; desktopLabel: string; hint: string }
+> = {
+  done: {
+    label: "Lembur Selesai",
+    desktopLabel: "Lembur Selesai",
+    hint: "Terima kasih sudah lembur hari ini",
+  },
+  ready: {
+    label: "Selesai Lembur",
+    desktopLabel: "Selesai Lembur",
+    hint: "Klik untuk mengakhiri lembur",
+  },
+  active: {
+    label: "Lembur Aktif",
+    desktopLabel: "Lembur Aktif",
+    hint: "Menunggu waktu minimum...",
+  },
+  disabled: {
+    label: "Mulai Lembur",
+    desktopLabel: "Lembur",
+    hint: "Check-out dulu",
+  },
+  available: {
+    label: "Mulai Lembur",
+    desktopLabel: "Lembur",
+    hint: "Catat waktu lembur Anda",
+  },
+};
+
+function getOvertimeView(p: QuickActionsProps): ActionView {
+  const state = getOvertimeState(p);
+  const { label, desktopLabel, hint } = OVERTIME_TEXT[state];
+
+  return {
+    id: "overtime",
+    state,
+    accent: "amber",
+    layout: "wide",
+    icon: Clock,
+    label,
+    desktopLabel,
+    hint:
+      state === "disabled" && p.isOnLeave
+        ? "Tidak bisa lembur karena izin/cuti"
+        : hint,
+    onClick: p.onOvertime,
+  };
+}
+
+function getLeaveView(p: QuickActionsProps): ActionView {
+  let state: ActionState = "available";
+  if (p.isOnLeave) state = "done";
+  else if (p.isCheckedIn) state = "disabled";
+
+  const hints: Record<"done" | "disabled" | "available", string> = {
+    done: "Pengajuan izin/cuti hari ini sudah tercatat",
+    disabled: "Tidak bisa izin karena sudah hadir",
+    available: "Ajukan absen tidak hadir",
+  };
+
+  return {
+    id: "leave",
+    state,
+    accent: "blue",
+    layout: "wide",
+    icon: FileDown,
+    label: state === "done" ? "Izin / Cuti Terkirim" : "Izin / Cuti",
+    desktopLabel: state === "done" ? "Izin/Cuti Terkirim" : "Izin / Cuti",
+    hint: hints[state as keyof typeof hints],
+    onClick: p.onLeave,
+  };
+}
+
+// ── Presentational components ──────────────────────────────────────────────────
+function ActionCard({ view }: { readonly view: ActionView }) {
+  const { state, accent, layout, label, time, hint } = view;
+  const isCompact = layout === "compact";
+  const Icon = state === "done" ? CheckCircle : view.icon;
+
   return (
-    <>
-      {/* ── Mobile: Full-width action cards (< sm) ── */}
-      <div className="grid grid-cols-2 gap-3 sm:hidden">
-        {/* Check-in card */}
-        <button
-          type="button"
-          disabled={isCheckedIn || isOnLeave}
-          onClick={onCheckIn}
-          className={cn(
-            "flex flex-col items-center justify-center gap-2 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[96px]",
-            isCheckedIn
-              ? "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : isOnLeave
-                ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
-                : "border-border bg-card hover:border-primary/40 hover:shadow-md cursor-pointer active:scale-95",
-          )}
-        >
-          <div
-            className={cn(
-              "flex size-11 items-center justify-center rounded-xl",
-              isCheckedIn
-                ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                : isOnLeave
-                  ? "bg-muted text-muted-foreground"
-                  : "bg-primary/10 text-primary",
-            )}
-          >
-            {isCheckedIn ? (
-              <CheckCircle className="size-6" />
-            ) : (
-              <LogIn className="size-6" />
-            )}
-          </div>
-          <div className="text-center">
-            <p
-              className={cn(
-                "text-sm font-semibold leading-tight",
-                isCheckedIn
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : "text-foreground",
-              )}
-            >
-              {isCheckedIn ? "Sudah Check-in" : "Check-in"}
-            </p>
-            {isCheckedIn && (
-              <p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                <Clock className="size-3" />
-                {formatTime(checkInTime)}
-              </p>
-            )}
-            {isOnLeave && !isCheckedIn && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Hari ini izin/cuti
-              </p>
-            )}
-          </div>
-        </button>
-
-        {/* Check-out card */}
-        <button
-          type="button"
-          disabled={!isCheckedIn || isCheckedOut || isOnLeave}
-          onClick={onCheckOut}
-          className={cn(
-            "flex flex-col items-center justify-center gap-2 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[96px]",
-            isCheckedOut
-              ? "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : !isCheckedIn || isOnLeave
-                ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
-                : "border-border bg-card hover:border-primary/40 hover:shadow-md cursor-pointer active:scale-95",
-          )}
-        >
-          <div
-            className={cn(
-              "flex size-11 items-center justify-center rounded-xl",
-              isCheckedOut
-                ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                : !isCheckedIn || isOnLeave
-                  ? "bg-muted text-muted-foreground"
-                  : "bg-primary/10 text-primary",
-            )}
-          >
-            {isCheckedOut ? (
-              <CheckCircle className="size-6" />
-            ) : (
-              <LogOut className="size-6" />
-            )}
-          </div>
-          <div className="text-center">
-            <p
-              className={cn(
-                "text-sm font-semibold leading-tight",
-                isCheckedOut
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : "text-foreground",
-              )}
-            >
-              {isCheckedOut ? "Sudah Check-out" : "Check-out"}
-            </p>
-            {isCheckedOut && (
-              <p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                <Clock className="size-3" />
-                {formatTime(checkOutTime)}
-              </p>
-            )}
-            {!isCheckedIn && !isCheckedOut && !isOnLeave && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Check-in dulu
-              </p>
-            )}
-            {isOnLeave && !isCheckedOut && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Hari ini izin/cuti
-              </p>
-            )}
-          </div>
-        </button>
-
-        {/* Overtime card */}
-        <button
-          type="button"
-          disabled={
-            !isCheckedOut ||
-            (isOvertime && !isOvertimeReadyToClockOut) ||
-            isOvertimeDone ||
-            isOnLeave
-          }
-          onClick={onOvertime}
-          className={cn(
-            "col-span-2 flex items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[72px]",
-            isOvertimeDone
-              ? "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : isOnLeave
-                ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
-                : isOvertime
-                  ? isOvertimeReadyToClockOut
-                    ? "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95"
-                    : "cursor-default border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
-                  : !isCheckedOut
-                    ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
-                    : "border-border bg-card hover:border-amber-500/40 hover:shadow-md cursor-pointer active:scale-95",
-          )}
-        >
-          <div
-            className={cn(
-              "flex size-10 items-center justify-center rounded-xl",
-              isOvertimeDone
-                ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                : isOnLeave
-                  ? "bg-muted text-muted-foreground"
-                  : isOvertime
-                    ? "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400"
-                    : !isCheckedOut
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-amber-500/10 text-amber-500",
-            )}
-          >
-            {isOvertimeDone ? (
-              <CheckCircle className="size-5" />
-            ) : isOvertime && !isOvertimeReadyToClockOut ? (
-              <Clock className="size-5" />
-            ) : (
-              <Clock className="size-5" />
-            )}
-          </div>
-          <div className="text-left flex-1">
-            <p
-              className={cn(
-                "text-sm font-semibold leading-tight",
-                isOvertimeDone
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : isOvertime
-                    ? "text-amber-700 dark:text-amber-400"
-                    : "text-foreground",
-              )}
-            >
-              {isOvertimeDone
-                ? "Lembur Selesai"
-                : isOvertime
-                  ? isOvertimeReadyToClockOut
-                    ? "Selesai Lembur"
-                    : "Lembur Aktif"
-                  : "Mulai Lembur"}
-            </p>
-
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isOnLeave
-                ? "Tidak bisa lembur karena izin/cuti"
-                : isOvertimeDone
-                  ? "Terima kasih sudah lembur hari ini"
-                  : isOvertime
-                    ? isOvertimeReadyToClockOut
-                      ? "Klik untuk mengakhiri lembur"
-                      : "Menunggu waktu minimum..."
-                    : isCheckedOut
-                      ? "Catat waktu lembur Anda"
-                      : "Check-out dulu"}
-            </p>
-          </div>
-        </button>
-
-        {/* Leave card */}
-        <button
-          type="button"
-          disabled={isCheckedIn || isOnLeave}
-          onClick={onLeave}
-          className={cn(
-            "col-span-2 flex items-center justify-center gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 min-h-[72px]",
-            isOnLeave
-              ? "cursor-default border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
-              : isCheckedIn
-                ? "cursor-not-allowed border-border/50 bg-muted/30 opacity-50"
-                : "border-border bg-card hover:border-blue-500/40 hover:shadow-md cursor-pointer active:scale-95",
-          )}
-        >
-          <div
-            className={cn(
-              "flex size-10 items-center justify-center rounded-xl",
-              isOnLeave
-                ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                : isCheckedIn
-                  ? "bg-muted text-muted-foreground"
-                  : "bg-blue-500/10 text-blue-500",
-            )}
-          >
-            {isOnLeave ? (
-              <CheckCircle className="size-5" />
-            ) : (
-              <FileDown className="size-5" />
-            )}
-          </div>
-          <div className="text-left flex-1">
-            <p
-              className={cn(
-                "text-sm font-semibold leading-tight",
-                isOnLeave
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : "text-foreground",
-              )}
-            >
-              {isOnLeave ? "Izin / Cuti Terkirim" : "Izin / Cuti"}
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isOnLeave
-                ? "Pengajuan izin/cuti hari ini sudah tercatat"
-                : isCheckedIn
-                  ? "Tidak bisa izin karena sudah hadir"
-                  : "Ajukan absen tidak hadir"}
-            </p>
-          </div>
-        </button>
+    <button
+      type="button"
+      disabled={!isEnabled(state)}
+      onClick={view.onClick}
+      className={cn(
+        isCompact ? COMPACT_CARD_BASE : WIDE_CARD_BASE,
+        resolveStyle(CARD_STYLES, state, accent),
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-xl",
+          isCompact ? "size-11" : "size-10",
+          resolveStyle(ICON_BOX_STYLES, state, accent),
+        )}
+      >
+        <Icon className={isCompact ? "size-6" : "size-5"} />
       </div>
 
-      {/* ── Desktop: Compact inline buttons (sm+) ── */}
-      <div className="hidden sm:flex items-center gap-2">
-        {/* Check-in */}
-        <button
-          type="button"
-          disabled={isCheckedIn || isOnLeave}
-          onClick={onCheckIn}
+      <div className={isCompact ? "text-center" : "flex-1 text-left"}>
+        <p
           className={cn(
-            "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors",
-            isCheckedIn
-              ? "cursor-default bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
-              : isOnLeave
-                ? "cursor-not-allowed bg-muted/50 text-muted-foreground"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+            "text-sm font-semibold leading-tight",
+            TITLE_STYLES[state] ?? "text-foreground",
           )}
         >
-          {isCheckedIn ? (
-            <CheckCircle className="size-4" />
-          ) : (
-            <LogIn className="size-4" />
-          )}
-          {isCheckedIn
-            ? `Check-in: ${formatTime(checkInTime)}`
-            : isOnLeave
-              ? "Izin/Cuti Aktif"
-              : "Check-in Sekarang"}
-        </button>
+          {label}
+        </p>
+        {time && (
+          <p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+            <Clock className="size-3" />
+            {time}
+          </p>
+        )}
+        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      </div>
+    </button>
+  );
+}
 
-        {/* Check-out */}
-        <button
-          type="button"
-          disabled={!isCheckedIn || isCheckedOut || isOnLeave}
-          onClick={onCheckOut}
-          className={cn(
-            "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
-            isCheckedOut
-              ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-              : !isCheckedIn || isOnLeave
-                ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
-                : "border-border bg-background hover:bg-muted text-foreground shadow-sm",
-          )}
-        >
-          {isCheckedOut ? (
-            <CheckCircle className="size-4" />
-          ) : (
-            <LogOut className="size-4" />
-          )}
-          {isCheckedOut
-            ? `Check-out: ${formatTime(checkOutTime)}`
-            : "Check-out"}
-        </button>
+function ActionButton({ view }: { readonly view: ActionView }) {
+  const { state, accent, desktopLabel } = view;
+  const Icon = state === "done" ? CheckCircle : view.icon;
 
-        {/* Overtime */}
-        <button
-          type="button"
-          disabled={
-            !isCheckedOut ||
-            (isOvertime && !isOvertimeReadyToClockOut) ||
-            isOvertimeDone ||
-            isOnLeave
-          }
-          onClick={onOvertime}
-          className={cn(
-            "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
-            isOvertimeDone
-              ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-              : isOnLeave
-                ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
-                : isOvertime
-                  ? isOvertimeReadyToClockOut
-                    ? "border-amber-200 bg-background hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 shadow-sm"
-                    : "cursor-default border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
-                  : !isCheckedOut
-                    ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
-                    : "border-border bg-background hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 shadow-sm",
-          )}
-        >
-          {isOvertimeDone ? (
-            <CheckCircle className="size-4" />
-          ) : (
-            <Clock className="size-4" />
-          )}
-          {isOvertimeDone
-            ? "Lembur Selesai"
-            : isOvertime
-              ? isOvertimeReadyToClockOut
-                ? "Selesai Lembur"
-                : "Lembur Aktif"
-              : "Lembur"}
-        </button>
+  return (
+    <button
+      type="button"
+      disabled={!isEnabled(state)}
+      onClick={view.onClick}
+      className={cn(
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
+        resolveStyle(BUTTON_STYLES, state, accent),
+      )}
+    >
+      <Icon className="size-4" />
+      {desktopLabel}
+    </button>
+  );
+}
 
-        {/* Leave */}
-        <button
-          type="button"
-          disabled={isCheckedIn || isOnLeave}
-          onClick={onLeave}
-          className={cn(
-            "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors",
-            isOnLeave
-              ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-              : isCheckedIn
-                ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground"
-                : "border-border bg-background hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-400 shadow-sm",
-          )}
-        >
-          {isOnLeave ? (
-            <CheckCircle className="size-4" />
-          ) : (
-            <FileDown className="size-4" />
-          )}
-          {isOnLeave ? "Izin/Cuti Terkirim" : "Izin / Cuti"}
-        </button>
+// ── Main component ─────────────────────────────────────────────────────────────
+export default function QuickActions(props: QuickActionsProps) {
+  const views = [
+    getCheckInView(props),
+    getCheckOutView(props),
+    getOvertimeView(props),
+    getLeaveView(props),
+  ];
+
+  return (
+    <>
+      {/* ── Mobile: action cards (< sm) ── */}
+      <div className="grid grid-cols-2 gap-3 sm:hidden">
+        {views.map((view) => (
+          <ActionCard key={view.id} view={view} />
+        ))}
+      </div>
+
+      {/* ── Desktop: compact inline buttons (sm+) ── */}
+      <div className="hidden items-center gap-2 sm:flex">
+        {views.map((view) => (
+          <ActionButton key={view.id} view={view} />
+        ))}
       </div>
     </>
   );

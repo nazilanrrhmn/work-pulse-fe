@@ -13,6 +13,7 @@ import {
   AlertCircle,
   FileDown,
   Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { apiV1 } from "@/libs/api";
@@ -32,109 +33,205 @@ interface TimesheetRow {
   status: AttendanceStatus;
 }
 
-// ── Mock data generator ────────────────────────────────────────────────────────
-function generateMonthData(
+// ── Constants ──────────────────────────────────────────────────────────────────
+const MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+] as const;
+
+const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"] as const;
+const ABSENT_TYPES = new Set(["CUTI", "IZIN", "SAKIT"]);
+const TABLE_HEADERS = [
+  "Tanggal",
+  "Check-in",
+  "Check-out",
+  "Durasi",
+  "Project",
+  "Keterangan",
+  "Status",
+] as const;
+const RECORDS_LIMIT = 100;
+
+const STATUS_CONFIG: Record<
+  AttendanceStatus,
+  { label: string; className: string }
+> = {
+  present: {
+    label: "Hadir",
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  },
+  absent: {
+    label: "Tidak Hadir",
+    className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  },
+  holiday: {
+    label: "Hari Libur",
+    className:
+      "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  },
+  empty: {
+    label: "Belum Diisi",
+    className:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  weekend: {
+    label: "Akhir Pekan",
+    className: "bg-muted text-muted-foreground",
+  },
+};
+
+// ── Date helpers ───────────────────────────────────────────────────────────────
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** Format "YYYY-MM-DD"; `monthIndex` berbasis 0 (sama seperti Date#getMonth). */
+const toDateKey = (year: number, monthIndex: number, day: number) =>
+  `${year}-${pad(monthIndex + 1)}-${pad(day)}`;
+
+const getDaysInMonth = (year: number, monthIndex: number) =>
+  new Date(year, monthIndex + 1, 0).getDate();
+
+const formatDayMonth = (dateKey: string) =>
+  new Date(`${dateKey}T00:00:00`).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+  });
+
+/** Ambil "HH:mm" dari "HH:mm:ss". */
+const toHHmm = (time?: string | null) => (time ? time.slice(0, 5) : null);
+
+function toMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function calculateDuration(
+  checkIn: string | null,
+  checkOut: string | null,
+): string | null {
+  if (!checkIn || !checkOut) return null;
+
+  const diffMinutes = toMinutes(checkOut) - toMinutes(checkIn);
+  if (diffMinutes <= 0) return null;
+
+  return `${Math.floor(diffMinutes / 60)}j ${diffMinutes % 60}m`;
+}
+
+// ── Row builder ────────────────────────────────────────────────────────────────
+function buildRecordRow(
+  record: AttendanceResponseDTO,
+): Pick<
+  TimesheetRow,
+  "status" | "checkIn" | "checkOut" | "duration" | "project" | "notes"
+> {
+  if (ABSENT_TYPES.has(record.type)) {
+    return {
+      status: "absent",
+      checkIn: null,
+      checkOut: null,
+      duration: null,
+      project: null,
+      notes: `Pengajuan: ${record.type}`,
+    };
+  }
+
+  const checkIn = toHHmm(record.clockIn);
+  const checkOut = toHHmm(record.overtimeClockOut || record.clockOut);
+
+  let notes = record.activityDescription;
+  if (record.overtime) {
+    notes = notes ? `${notes} (+ Lembur)` : "+ Lembur";
+  }
+
+  return {
+    status: "present",
+    checkIn,
+    checkOut,
+    duration: calculateDuration(checkIn, checkOut),
+    project: record.project,
+    notes,
+  };
+}
+
+function buildEmptyRow(isWeekend: boolean): ReturnType<typeof buildRecordRow> {
+  return {
+    status: isWeekend ? "weekend" : "empty",
+    checkIn: null,
+    checkOut: null,
+    duration: null,
+    project: null,
+    notes: null,
+  };
+}
+
+function buildMonthRows(
   year: number,
-  month: number,
+  monthIndex: number,
   records: AttendanceResponseDTO[] = [],
 ): TimesheetRow[] {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const recordsByDate = new Map(records.map((r) => [r.date, r]));
 
-  return Array.from({ length: daysInMonth }, (_, i) => {
+  return Array.from({ length: getDaysInMonth(year, monthIndex) }, (_, i) => {
     const day = i + 1;
-    const date = new Date(year, month, day);
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = new Date(year, monthIndex, day).getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const record = records.find((r) => r.date === dateStr);
-
-    let status: AttendanceStatus;
-    let checkIn: string | null = null;
-    let checkOut: string | null = null;
-    let duration: string | null = null;
-    let project: string | null = null;
-    let notes: string | null = null;
-
-    if (record) {
-      if (["CUTI", "IZIN", "SAKIT"].includes(record.type)) {
-        status = "absent";
-        notes = `Pengajuan: ${record.type}`;
-      } else {
-        status = "present";
-        checkIn = record.clockIn ? record.clockIn.slice(0, 5) : null;
-        checkOut =
-          record.overtimeClockOut || record.clockOut
-            ? (record.overtimeClockOut || record.clockOut)!.slice(0, 5)
-            : null;
-        project = record.project;
-        notes = record.activityDescription;
-        if (record.overtime) {
-          notes = notes ? `${notes} (+ Lembur)` : "+ Lembur";
-        }
-
-        // Calculate duration if possible
-        if (checkIn && checkOut) {
-          const start = new Date(`1970-01-01T${checkIn}:00`);
-          const end = new Date(`1970-01-01T${checkOut}:00`);
-          const diffMs = end.getTime() - start.getTime();
-          if (diffMs > 0) {
-            const hrs = Math.floor(diffMs / (1000 * 60 * 60));
-            const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            duration = `${hrs}j ${mins}m`;
-          }
-        }
-      }
-    } else if (isWeekend) {
-      status = "weekend";
-    } else {
-      status = "empty";
-    }
+    const date = toDateKey(year, monthIndex, day);
+    const record = recordsByDate.get(date);
 
     return {
-      date: dateStr,
-      day: dayNames[dayOfWeek],
-      checkIn,
-      checkOut,
-      duration,
-      project,
-      notes,
-      status,
+      date,
+      day: DAY_NAMES[dayOfWeek],
+      ...(record ? buildRecordRow(record) : buildEmptyRow(isWeekend)),
     };
   });
 }
 
-// ── Status Badge ───────────────────────────────────────────────────────────────
+// ── Export helpers ─────────────────────────────────────────────────────────────
+function getFilenameFromHeader(header?: string): string | null {
+  if (!header) return null;
+  return /filename="?([^"]+)"?/.exec(header)?.[1] ?? null;
+}
+
+function downloadBlob(data: BlobPart, filename: string) {
+  const url = globalThis.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  globalThis.URL.revokeObjectURL(url);
+}
+
+// ── Small UI pieces ────────────────────────────────────────────────────────────
+function Dash() {
+  return <span className="text-muted-foreground/40">—</span>;
+}
+
+function TimeCell({ value }: { readonly value: string | null }) {
+  if (!value) return <Dash />;
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <Clock className="size-3.5 text-muted-foreground" />
+      {value}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { readonly status: AttendanceStatus }) {
-  const config: Record<AttendanceStatus, { label: string; className: string }> =
-    {
-      present: {
-        label: "Hadir",
-        className:
-          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-      },
-      absent: {
-        label: "Tidak Hadir",
-        className:
-          "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-      },
-      holiday: {
-        label: "Hari Libur",
-        className:
-          "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-      },
-      empty: {
-        label: "Belum Diisi",
-        className:
-          "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-      },
-      weekend: {
-        label: "Akhir Pekan",
-        className: "bg-muted text-muted-foreground",
-      },
-    };
-  const { label, className } = config[status];
+  const { label, className } = STATUS_CONFIG[status];
+
   return (
     <span
       className={cn(
@@ -147,35 +244,49 @@ function StatusBadge({ status }: { readonly status: AttendanceStatus }) {
   );
 }
 
-// ── Summary Stats ──────────────────────────────────────────────────────────────
-function SummaryBar({ rows }: { readonly rows: TimesheetRow[] }) {
-  const workDays = rows.filter((r) => r.status !== "weekend").length;
-  const present = rows.filter((r) => r.status === "present").length;
-  const absent = rows.filter((r) => r.status === "absent").length;
-  const empty = rows.filter((r) => r.status === "empty").length;
+interface StatItem {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  color: string;
+}
 
-  const stats = [
+function SummaryBar({ rows }: { readonly rows: TimesheetRow[] }) {
+  const counts = useMemo(() => {
+    const result = { workDays: 0, present: 0, absent: 0, empty: 0 };
+
+    for (const { status } of rows) {
+      if (status !== "weekend") result.workDays++;
+      if (status === "present") result.present++;
+      if (status === "absent") result.absent++;
+      if (status === "empty") result.empty++;
+    }
+
+    return result;
+  }, [rows]);
+
+  const stats: StatItem[] = [
     {
       label: "Hari Kerja",
-      value: workDays,
+      value: counts.workDays,
       icon: CalendarCheck,
       color: "text-foreground",
     },
     {
       label: "Hadir",
-      value: present,
+      value: counts.present,
       icon: CalendarCheck,
       color: "text-emerald-600 dark:text-emerald-400",
     },
     {
       label: "Tidak Hadir",
-      value: absent,
+      value: counts.absent,
       icon: CalendarX,
       color: "text-red-600 dark:text-red-400",
     },
     {
       label: "Belum Diisi",
-      value: empty,
+      value: counts.empty,
       icon: AlertCircle,
       color: "text-amber-600 dark:text-amber-400",
     },
@@ -199,49 +310,170 @@ function SummaryBar({ rows }: { readonly rows: TimesheetRow[] }) {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
-const MONTH_NAMES = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
+function TimesheetTableRow({
+  row,
+  isToday,
+}: {
+  readonly row: TimesheetRow;
+  readonly isToday: boolean;
+}) {
+  return (
+    <tr
+      className={cn(
+        "border-b border-border/60 transition-colors last:border-0",
+        row.status === "weekend"
+          ? "bg-muted/20 text-muted-foreground"
+          : "hover:bg-muted/30",
+        isToday && "bg-primary/5 ring-1 ring-inset ring-primary/20",
+      )}
+    >
+      <td className="whitespace-nowrap px-4 py-3">
+        <div className="flex items-center gap-2">
+          {isToday && (
+            <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+          )}
+          <span className={cn("font-medium", isToday && "text-primary")}>
+            {`${row.day}, ${formatDayMonth(row.date)}`}
+          </span>
+        </div>
+      </td>
 
+      <td className="whitespace-nowrap px-4 py-3">
+        <TimeCell value={row.checkIn} />
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-3">
+        <TimeCell value={row.checkOut} />
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-3">
+        {row.duration ? (
+          <span className="font-medium">{row.duration}</span>
+        ) : (
+          <Dash />
+        )}
+      </td>
+
+      <td className="max-w-[180px] px-4 py-3">
+        <span className="line-clamp-1">{row.project ?? <Dash />}</span>
+      </td>
+
+      <td className="max-w-[180px] px-4 py-3">
+        <span className="line-clamp-1 text-muted-foreground">
+          {row.notes ?? <Dash />}
+        </span>
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-3">
+        <StatusBadge status={row.status} />
+      </td>
+    </tr>
+  );
+}
+
+function MonthNavigator({
+  year,
+  month,
+  isCurrentMonth,
+  onPrev,
+  onNext,
+}: {
+  readonly year: number;
+  readonly month: number;
+  readonly isCurrentMonth: boolean;
+  readonly onPrev: () => void;
+  readonly onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-1 rounded-lg border border-border bg-card p-1 shadow-sm sm:justify-center">
+      <button
+        type="button"
+        onClick={onPrev}
+        className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="Bulan sebelumnya"
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <span className="flex-1 text-center text-sm font-semibold sm:min-w-[10rem]">
+        {`${MONTH_NAMES[month]} ${year}`}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={isCurrentMonth}
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
+          isCurrentMonth
+            ? "cursor-not-allowed opacity-30"
+            : "hover:bg-muted hover:text-foreground",
+        )}
+        aria-label="Bulan berikutnya"
+      >
+        <ChevronRight className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+function ExportButton({
+  isExporting,
+  onClick,
+}: {
+  readonly isExporting: boolean;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isExporting}
+      className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      {isExporting ? (
+        <>
+          <Loader2 className="size-4 animate-spin" />
+          <span>Menyiapkan...</span>
+        </>
+      ) : (
+        <>
+          <FileDown className="size-4" />
+          <span>Export Laporan</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 export default function TimesheetPage() {
   const dispatch = useAppDispatch();
-  const { records } = useAppSelector(
-    (state) => state.attendance,
-  );
+  const { records } = useAppSelector((state) => state.attendance);
 
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-    const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  const isCurrentMonth =
+    year === today.getFullYear() && month === today.getMonth();
+  const todayKey = toDateKey(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
 
+  useEffect(() => {
     dispatch(
       fetchAttendances({
-        start_date: startDate,
-        end_date: endDate,
-        limit: 100,
+        start_date: toDateKey(year, month, 1),
+        end_date: toDateKey(year, month, getDaysInMonth(year, month)),
+        limit: RECORDS_LIMIT,
       }),
     );
   }, [year, month, dispatch]);
 
   const rows = useMemo(
-    () => generateMonthData(year, month, records),
+    () => buildMonthRows(year, month, records),
     [year, month, records],
   );
 
@@ -249,56 +481,37 @@ export default function TimesheetPage() {
     if (month === 0) {
       setMonth(11);
       setYear((y) => y - 1);
-    } else setMonth((m) => m - 1);
+    } else {
+      setMonth((m) => m - 1);
+    }
   };
 
   const goToNext = () => {
-    const isNextFuture =
-      year > today.getFullYear() ||
-      (year === today.getFullYear() && month >= today.getMonth());
-    if (isNextFuture) return;
+    if (isCurrentMonth) return;
+
     if (month === 11) {
       setMonth(0);
       setYear((y) => y + 1);
-    } else setMonth((m) => m + 1);
+    } else {
+      setMonth((m) => m + 1);
+    }
   };
 
-  const isCurrentMonth =
-    year === today.getFullYear() && month === today.getMonth();
-
   const handleExport = async () => {
+    setIsExporting(true);
+
     try {
-      setIsExporting(true);
-      const response = await apiV1.get(`/attendances/export-timesheet`, {
-        params: {
-          year,
-          month: month + 1,
-        },
+      const response = await apiV1.get("/attendances/export-timesheet", {
+        params: { year, month: month + 1 },
         responseType: "blob",
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
+      const filename =
+        getFilenameFromHeader(response.headers["content-disposition"]) ??
+        `timesheet-${year}-${pad(month + 1)}.xlsx`;
 
-      const contentDisposition = response.headers["content-disposition"];
-      let filename = `timesheet-${year}-${String(month + 1).padStart(2, "0")}.xlsx`;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-
-        if (filenameMatch?.[1]) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error: any) {
+      downloadBlob(response.data, filename);
+    } catch (error: unknown) {
       console.error("Export failed:", error);
       Swal.fire({
         icon: "error",
@@ -323,53 +536,15 @@ export default function TimesheetPage() {
           </p>
         </div>
 
-        <div className="flex w-full flex-col sm:w-auto sm:flex-row sm:items-center gap-3">
-          {/* Month Navigator */}
-          <div className="flex justify-between sm:justify-center items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
-            <button
-              onClick={goToPrev}
-              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Bulan sebelumnya"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <span className="flex-1 text-center text-sm font-semibold sm:min-w-[10rem]">
-              {MONTH_NAMES[month]} {year}
-            </span>
-            <button
-              onClick={goToNext}
-              disabled={isCurrentMonth}
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
-                isCurrentMonth
-                  ? "cursor-not-allowed opacity-30"
-                  : "hover:bg-muted hover:text-foreground",
-              )}
-              aria-label="Bulan berikutnya"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-
-          {/* Export Button */}
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={isExporting}
-            className="inline-flex h-10 w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                <span>Menyiapkan...</span>
-              </>
-            ) : (
-              <>
-                <FileDown className="size-4" />
-                <span>Export Laporan</span>
-              </>
-            )}
-          </button>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <MonthNavigator
+            year={year}
+            month={month}
+            isCurrentMonth={isCurrentMonth}
+            onPrev={goToPrev}
+            onNext={goToNext}
+          />
+          <ExportButton isExporting={isExporting} onClick={handleExport} />
         </div>
       </div>
 
@@ -382,129 +557,24 @@ export default function TimesheetPage() {
           <table className="w-full min-w-[700px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                {[
-                  "Tanggal",
-                  "Check-in",
-                  "Check-out",
-                  "Durasi",
-                  "Project",
-                  "Keterangan",
-                  "Status",
-                ].map((h) => (
+                {TABLE_HEADERS.map((header) => (
                   <th
-                    key={h}
+                    key={header}
                     className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
-                    {h}
+                    {header}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const isToday =
-                  isCurrentMonth &&
-                  row.date ===
-                    `${year}-${String(month + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-                return (
-                  <tr
-                    key={row.date}
-                    className={cn(
-                      "border-b border-border/60 transition-colors last:border-0",
-                      row.status === "weekend"
-                        ? "bg-muted/20 text-muted-foreground"
-                        : "hover:bg-muted/30",
-                      isToday &&
-                        "bg-primary/5 ring-1 ring-inset ring-primary/20",
-                    )}
-                  >
-                    {/* Tanggal */}
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {isToday && (
-                          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-                        )}
-                        <span
-                          className={cn(
-                            "font-medium",
-                            isToday && "text-primary",
-                          )}
-                        >
-                          {row.day},{" "}
-                          {new Date(row.date + "T00:00:00").toLocaleDateString(
-                            "id-ID",
-                            {
-                              day: "numeric",
-                              month: "short",
-                            },
-                          )}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Check-in */}
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {row.checkIn ? (
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="size-3.5 text-muted-foreground" />
-                          {row.checkIn}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
-                    </td>
-
-                    {/* Check-out */}
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {row.checkOut ? (
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="size-3.5 text-muted-foreground" />
-                          {row.checkOut}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
-                    </td>
-
-                    {/* Durasi */}
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span
-                        className={
-                          row.duration
-                            ? "font-medium"
-                            : "text-muted-foreground/40"
-                        }
-                      >
-                        {row.duration ?? "—"}
-                      </span>
-                    </td>
-
-                    {/* Project */}
-                    <td className="max-w-[180px] px-4 py-3">
-                      <span className="line-clamp-1">
-                        {row.project ?? (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </span>
-                    </td>
-
-                    {/* Keterangan */}
-                    <td className="max-w-[180px] px-4 py-3">
-                      <span className="line-clamp-1 text-muted-foreground">
-                        {row.notes ?? (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </span>
-                    </td>
-
-                    {/* Status */}
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <StatusBadge status={row.status} />
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map((row) => (
+                <TimesheetTableRow
+                  key={row.date}
+                  row={row}
+                  isToday={row.date === todayKey}
+                />
+              ))}
             </tbody>
           </table>
         </div>

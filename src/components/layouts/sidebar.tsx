@@ -9,42 +9,62 @@ import {
   BriefcaseBusiness,
   UserCircle,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 // ── Nav items ──────────────────────────────────────────────────────────────────
 interface NavItem {
-  label: string;
-  to: string;
-  icon: React.ElementType;
+  readonly label: string;
+  readonly to: string;
+  readonly icon: LucideIcon;
 }
 
-const navItems: NavItem[] = [
+const navItems: readonly NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "Timesheet", to: "/timesheet", icon: CalendarDays },
 ];
 
-const allItems: NavItem[] = [
-  ...navItems,
-  { label: "Profil Saya", to: "/profile", icon: UserCircle },
-];
+const profileItem: NavItem = {
+  label: "Profil Saya",
+  to: "/profile",
+  icon: UserCircle,
+};
+
+const allItems: readonly NavItem[] = [...navItems, profileItem];
+
+// ── Brand (logo + nama aplikasi) ───────────────────────────────────────────────
+function Brand({ showLabel = true }: { readonly showLabel?: boolean }) {
+  return (
+    <>
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+        <BriefcaseBusiness className="size-4" />
+      </div>
+      {showLabel && (
+        <span className="truncate font-semibold tracking-tight">
+          Work<span className="font-bold">Pulse</span>
+        </span>
+      )}
+    </>
+  );
+}
 
 // ── Shared NavLink ─────────────────────────────────────────────────────────────
-function NavLink({
-  item,
-  collapsed,
-  onClick,
-}: {
-  item: NavItem;
-  collapsed: boolean;
-  onClick?: () => void;
-}) {
-  const location = useLocation();
-  const isActive = location.pathname === item.to;
+interface NavLinkProps {
+  readonly item: NavItem;
+  readonly collapsed: boolean;
+  readonly onClick?: () => void;
+}
+
+function NavLink({ item, collapsed, onClick }: NavLinkProps) {
+  const { pathname } = useLocation();
+  const isActive = pathname === item.to;
+
   return (
     <Link
       to={item.to}
       onClick={onClick}
       title={collapsed ? item.label : undefined}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
         isActive
@@ -60,17 +80,18 @@ function NavLink({
 }
 
 // ── Desktop Sidebar ────────────────────────────────────────────────────────────
-function DesktopSidebar({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+interface DesktopSidebarProps {
+  readonly collapsed: boolean;
+  readonly onToggle: () => void;
+}
+
+function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
+  const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
+
   return (
     <aside
       className={cn(
-        "hidden md:flex relative h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out",
+        "relative hidden h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out md:flex",
         collapsed ? "w-16" : "w-60",
       )}
     >
@@ -81,14 +102,7 @@ function DesktopSidebar({
           collapsed ? "justify-center" : "gap-2",
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-          <BriefcaseBusiness className="size-4" />
-        </div>
-        {!collapsed && (
-          <span className="truncate font-semibold tracking-tight">
-            Work<span className="font-bold">Pulse</span>
-          </span>
-        )}
+        <Brand showLabel={!collapsed} />
       </div>
 
       {/* Nav Items */}
@@ -100,14 +114,12 @@ function DesktopSidebar({
 
       {/* Footer: Profile + Toggle */}
       <div className="flex flex-col gap-1 border-t border-sidebar-border p-2">
-        <NavLink
-          item={{ label: "Profil Saya", to: "/profile", icon: UserCircle }}
-          collapsed={collapsed}
-        />
+        <NavLink item={profileItem} collapsed={collapsed} />
         <button
+          type="button"
           onClick={onToggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={toggleLabel}
+          title={toggleLabel}
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             collapsed && "justify-center px-2",
@@ -128,24 +140,25 @@ function DesktopSidebar({
 }
 
 // ── Mobile Drawer ──────────────────────────────────────────────────────────────
-function MobileDrawer({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  // Close on escape
+interface MobileDrawerProps {
+  readonly open: boolean;
+  readonly onClose: () => void;
+}
+
+function MobileDrawer({ open, onClose }: MobileDrawerProps) {
+  // Tutup dengan tombol Escape
   useEffect(() => {
     if (!open) return;
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // Prevent body scroll when open
+  // Cegah scroll body saat drawer terbuka
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -154,44 +167,45 @@ function MobileDrawer({
   }, [open]);
 
   return (
-    // Outer container: fixed full-screen, pointer-events none when closed.
-    // overflow-hidden here ensures the w-72 drawer panel can never push the
-    // page layout wider than the viewport.
+    // Container fixed full-screen. `invisible` saat tertutup mengeluarkan
+    // link di dalamnya dari urutan tab & pembaca layar, dan transisi
+    // visibility menjaga animasi slide tetap terlihat saat menutup.
+    // overflow-hidden mencegah panel w-72 melebarkan layout halaman.
     <div
-      aria-hidden={!open}
       className={cn(
-        "fixed inset-0 z-40 overflow-hidden md:hidden",
-        open ? "pointer-events-auto" : "pointer-events-none",
+        "fixed inset-0 z-40 overflow-hidden transition-[visibility] duration-300 md:hidden",
+        open ? "visible pointer-events-auto" : "invisible pointer-events-none",
       )}
     >
-      {/* Backdrop */}
-      <div
+      {/* Backdrop: <button> native agar dapat diklik, disentuh, dan dibaca
+          pembaca layar. tabIndex -1 karena keyboard sudah dilayani Escape
+          dan tombol close di dalam panel. */}
+      <button
+        type="button"
+        tabIndex={-1}
         onClick={onClose}
+        aria-label="Close menu"
         className={cn(
-          "absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300",
+          "absolute inset-0 h-full w-full cursor-default bg-black/50 backdrop-blur-sm transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0",
         )}
       />
 
-      {/* Drawer panel — slides from left, contained inside the fixed wrapper */}
+      {/* Drawer panel — slide dari kiri */}
       <aside
+        aria-label="Navigation menu"
         className={cn(
           "absolute inset-y-0 left-0 flex w-72 flex-col bg-sidebar text-sidebar-foreground shadow-2xl transition-transform duration-300 ease-in-out",
           open ? "translate-x-0" : "-translate-x-full",
         )}
-        aria-label="Navigation menu"
       >
         {/* Drawer header */}
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-              <BriefcaseBusiness className="size-4" />
-            </div>
-            <span className="font-semibold tracking-tight">
-              Work<span className="font-bold">Pulse</span>
-            </span>
+            <Brand />
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close menu"
             className="flex size-9 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent"
@@ -214,11 +228,7 @@ function MobileDrawer({
 
         {/* Footer */}
         <div className="border-t border-sidebar-border p-3">
-          <NavLink
-            item={{ label: "Profil Saya", to: "/profile", icon: UserCircle }}
-            collapsed={false}
-            onClick={onClose}
-          />
+          <NavLink item={profileItem} collapsed={false} onClick={onClose} />
         </div>
       </aside>
     </div>
@@ -227,15 +237,21 @@ function MobileDrawer({
 
 // ── Mobile Bottom Navigation ───────────────────────────────────────────────────
 function BottomNav() {
-  const location = useLocation();
+  const { pathname } = useLocation();
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 flex h-16 items-stretch border-t border-border bg-background md:hidden">
+    <nav
+      aria-label="Bottom navigation"
+      className="fixed inset-x-0 bottom-0 z-30 flex h-16 items-stretch border-t border-border bg-background md:hidden"
+    >
       {allItems.map(({ label, to, icon: Icon }) => {
-        const isActive = location.pathname === to;
+        const isActive = pathname === to;
+
         return (
           <Link
             key={to}
             to={to}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
               isActive

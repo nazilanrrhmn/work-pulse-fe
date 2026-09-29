@@ -15,21 +15,54 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Clock } from "lucide-react";
 
+// ── Constants ──
+const ACTIVITY_MIN_LENGTH = 5;
+const ACTIVITY_MAX_LENGTH = 500;
+
+// ── Validation schema ──
 const overtimeSchema = z.object({
   overtimeActivity: z
     .string()
-    .min(5, "Deskripsi kegiatan minimal 5 karakter")
-    .max(500, "Deskripsi kegiatan maksimal 500 karakter"),
+    .min(
+      ACTIVITY_MIN_LENGTH,
+      `Deskripsi kegiatan minimal ${ACTIVITY_MIN_LENGTH} karakter`,
+    )
+    .max(
+      ACTIVITY_MAX_LENGTH,
+      `Deskripsi kegiatan maksimal ${ACTIVITY_MAX_LENGTH} karakter`,
+    ),
 });
 
 export type OvertimeFormValues = z.infer<typeof overtimeSchema>;
 
 interface OvertimeModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: OvertimeFormValues) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSubmit: (data: OvertimeFormValues) => void;
 }
 
+const DEFAULT_VALUES: OvertimeFormValues = {
+  overtimeActivity: "",
+};
+
+// ── Header ──
+function ModalHeader() {
+  return (
+    <div className="mb-5 flex items-center gap-2.5">
+      <div className="flex size-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+        <Clock className="size-5" />
+      </div>
+      <div>
+        <DialogTitle>Selesai Lembur</DialogTitle>
+        <DialogDescription>
+          Catat kegiatan lembur Anda hari ini
+        </DialogDescription>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal ──
 export default function OvertimeModal({
   open,
   onOpenChange,
@@ -39,12 +72,10 @@ export default function OvertimeModal({
     control,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { isSubmitting },
   } = useForm<OvertimeFormValues>({
     resolver: zodResolver(overtimeSchema),
-    defaultValues: {
-      overtimeActivity: "",
-    },
+    defaultValues: DEFAULT_VALUES,
   });
 
   const handleFormSubmit = (values: OvertimeFormValues) => {
@@ -53,9 +84,7 @@ export default function OvertimeModal({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      reset();
-    }
+    if (!nextOpen) reset();
     onOpenChange(nextOpen);
   };
 
@@ -65,44 +94,31 @@ export default function OvertimeModal({
         <DialogBackdrop />
         <DialogPopup>
           <DialogClose />
-          
-          <div className="mb-5">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-                <Clock className="size-5" />
-              </div>
-              <div>
-                <DialogTitle>Selesai Lembur</DialogTitle>
-                <DialogDescription>
-                  Catat kegiatan lembur Anda hari ini
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
+          <ModalHeader />
 
           <form
             onSubmit={handleSubmit(handleFormSubmit)}
             className="flex flex-col gap-4"
           >
-            <Field>
-              <FieldLabel htmlFor="overtimeActivity">
-                Deskripsi Kegiatan Lembur
-              </FieldLabel>
-              <Controller
-                name="overtimeActivity"
-                control={control}
-                render={({ field }) => (
+            <Controller
+              name="overtimeActivity"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>
+                    Deskripsi Kegiatan Lembur
+                  </FieldLabel>
                   <Textarea
-                    id="overtimeActivity"
+                    id={field.name}
                     placeholder="Jelaskan kegiatan yang dilakukan selama lembur..."
                     rows={4}
-                    aria-invalid={!!errors.overtimeActivity}
+                    aria-invalid={fieldState.invalid}
                     {...field}
                   />
-                )}
-              />
-              <FieldError>{errors.overtimeActivity?.message}</FieldError>
-            </Field>
+                  <FieldError>{fieldState.error?.message}</FieldError>
+                </Field>
+              )}
+            />
 
             <div className="mt-1 flex items-center justify-end gap-2">
               <Button

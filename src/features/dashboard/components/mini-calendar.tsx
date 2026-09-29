@@ -1,7 +1,12 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { useHolidays } from "../hooks/use-holidays";
+import { useAppDispatch, useAppSelector } from "@/hooks/use-store";
+import {
+  fetchAttendances,
+  type AttendanceResponseDTO,
+} from "@/stores/attendance/async";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -14,16 +19,38 @@ type DayStatus =
   | "joint_leave"
   | "today"
   | "today_holiday"
+  | "today_filled"
+  | "today_overtime"
   | "future";
 
 interface DayCell {
-  date: number;
-  dateStr: string; // "YYYY-MM-DD"
-  status: DayStatus;
-  tooltip?: string;
+  readonly date: number;
+  readonly dateStr: string; // "YYYY-MM-DD"
+  readonly status: DayStatus;
+  readonly tooltip?: string;
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
+interface DayContext {
+  readonly isToday: boolean;
+  readonly isPast: boolean;
+  readonly isWeekend: boolean;
+  readonly isNational: boolean;
+  readonly isJoint: boolean;
+  readonly attendance?: AttendanceResponseDTO;
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const LEAVE_TYPES: ReadonlySet<string> = new Set([
+  "CUTI",
+  "IZIN",
+  "SAKIT",
+  "SICK",
+  "ANNUAL",
+  "PERMISSION",
+  "OTHER",
+  "LEAVE",
+]);
 
 const statusStyles: Record<DayStatus, string> = {
   filled: "bg-emerald-500 text-white",
@@ -34,29 +61,62 @@ const statusStyles: Record<DayStatus, string> = {
   joint_leave: "bg-purple-400 text-white",
   today: "ring-2 ring-primary bg-primary text-primary-foreground font-bold",
   today_holiday: "ring-2 ring-rose-500 bg-rose-500 text-white font-bold",
+  today_filled:
+    "ring-2 ring-emerald-500 bg-emerald-500 text-white font-bold",
+  today_overtime:
+    "ring-2 ring-amber-400 bg-amber-400 text-white font-bold",
   future: "text-muted-foreground",
 };
 
+const WEEKDAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"] as const;
+
+const MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+] as const;
+
+const LEGEND_ITEMS = [
+  { label: "Terisi", color: "bg-emerald-500" },
+  { label: "Kurang", color: "bg-red-400" },
+  { label: "Lembur", color: "bg-amber-400" },
+  { label: "Libur", color: "bg-rose-500" },
+  { label: "Cuti Bersama", color: "bg-purple-400" },
+] as const;
+
+const SATURDAY_INDEX = 5; // 0=Sen … 6=Min
+const CALENDAR_FETCH_LIMIT = 50;
+
+// Key statis untuk placeholder (skeleton & offset awal bulan)
+const WEEKDAY_SKELETON_KEYS = WEEKDAYS.map((d) => `skeleton-head-${d}`);
+const DAY_SKELETON_KEYS = Array.from(
+  { length: 35 },
+  (_, n) => `skeleton-day-${n}`,
+);
+const OFFSET_KEYS = Array.from({ length: 6 }, (_, n) => `offset-${n}`);
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const WEEKDAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+const pad = (value: number) => String(value).padStart(2, "0");
 
-/** Nama bulan dalam Bahasa Indonesia */
-const MONTH_NAMES = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-];
-
-/** Format tanggal ke "YYYY-MM-DD" */
+/** Format tanggal ke "YYYY-MM-DD" (month berbasis 0) */
 function toDateStr(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return `${year}-${pad(month + 1)}-${pad(day)}`;
 }
 
-/** Hari pertama bulan (0=Sen … 6=Min, sesuai WEEKDAYS) */
-function getStartOffset(year: number, month: number): number {
-  const jsDay = new Date(year, month, 1).getDay(); // 0=Sun,1=Mon...6=Sat
-  // Konversi ke Mon-first: Sun(0)→6, Mon(1)→0, ..., Sat(6)→5
-  return jsDay === 0 ? 6 : jsDay - 1;
+/** Indeks hari dengan Senin sebagai awal minggu (0=Sen … 6=Min) */
+function getWeekdayIndex(year: number, month: number, day: number): number {
+  const jsDay = new Date(year, month, day).getDay(); // 0=Sun … 6=Sat
+  return (jsDay + 6) % 7;
 }
 
 /** Jumlah hari dalam sebulan */
@@ -64,154 +124,240 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
+/** Apakah tanggal sudah lewat, relatif terhadap hari ini */
+function isPastDay(
+  year: number,
+  month: number,
+  day: number,
+  today: Date,
+): boolean {
+  const viewed = year * 12 + month;
+  const current = today.getFullYear() * 12 + today.getMonth();
+
+  if (viewed !== current) return viewed < current;
+  return day < today.getDate();
+}
+
+/** Tentukan status attendance berdasarkan data record dari backend */
+function resolveAttendanceStatus(
+  record: AttendanceResponseDTO,
+  isToday: boolean,
+): DayStatus {
+  // Cek apakah tipe izin/cuti/sakit
+  if (LEAVE_TYPES.has(record.type.toUpperCase())) {
+    return "missing";
+  }
+
+  // Ada lembur
+  if (record.overtime) {
+    return isToday ? "today_overtime" : "overtime";
+  }
+
+  // Hadir biasa (ada clockIn)
+  if (record.clockIn) {
+    return isToday ? "today_filled" : "filled";
+  }
+
+  return "missing";
+}
+
+/** Tentukan status hari berdasarkan prioritas: libur > data backend > akhir pekan > hari ini > lewat */
+function resolveDayStatus(ctx: DayContext): DayStatus {
+  if (ctx.isNational) return ctx.isToday ? "today_holiday" : "national_holiday";
+  if (ctx.isJoint) return "joint_leave";
+  if (ctx.isWeekend) return "weekend";
+
+  // Gunakan data real dari backend
+  if (ctx.attendance) {
+    return resolveAttendanceStatus(ctx.attendance, ctx.isToday);
+  }
+
+  if (ctx.isToday) return "today";
+
+  // Hari yang sudah lewat tanpa record = belum diisi
+  return ctx.isPast ? "missing" : "future";
+}
+
+interface BuildCellsParams {
+  readonly year: number;
+  readonly month: number;
+  readonly today: Date;
+  readonly nationalHolidaySet: ReadonlySet<string>;
+  readonly jointLeaveSet: ReadonlySet<string>;
+  readonly holidayNames: ReadonlyMap<string, string>;
+  readonly recordsByDate: ReadonlyMap<string, AttendanceResponseDTO>;
+}
+
+function buildCells({
+  year,
+  month,
+  today,
+  nationalHolidaySet,
+  jointLeaveSet,
+  holidayNames,
+  recordsByDate,
+}: BuildCellsParams): DayCell[] {
+  const isCurrentMonth =
+    today.getFullYear() === year && today.getMonth() === month;
+
+  return Array.from({ length: getDaysInMonth(year, month) }, (_, i) => {
+    const day = i + 1;
+    const dateStr = toDateStr(year, month, day);
+    const isNational = nationalHolidaySet.has(dateStr);
+    const isJoint = jointLeaveSet.has(dateStr);
+
+    const status = resolveDayStatus({
+      isNational,
+      isJoint,
+      isWeekend: getWeekdayIndex(year, month, day) >= SATURDAY_INDEX,
+      isToday: isCurrentMonth && day === today.getDate(),
+      isPast: isPastDay(year, month, day, today),
+      attendance: recordsByDate.get(dateStr),
+    });
+
+    return {
+      date: day,
+      dateStr,
+      status,
+      tooltip: isNational || isJoint ? holidayNames.get(dateStr) : undefined,
+    };
+  });
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function CalendarSkeleton() {
   return (
     <div className="animate-pulse space-y-3">
       <div className="grid grid-cols-7 gap-1">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="mx-auto h-3 w-6 rounded bg-muted" />
+        {WEEKDAY_SKELETON_KEYS.map((key) => (
+          <div key={key} className="mx-auto h-3 w-6 rounded bg-muted" />
         ))}
-        {Array.from({ length: 35 }).map((_, i) => (
-          <div key={i} className="aspect-square rounded-md bg-muted" />
+        {DAY_SKELETON_KEYS.map((key) => (
+          <div key={key} className="aspect-square rounded-md bg-muted" />
         ))}
       </div>
     </div>
   );
 }
 
+function Legend() {
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {LEGEND_ITEMS.map(({ label, color }) => (
+        <span key={label} className="flex items-center gap-1">
+          <span className={cn("inline-block size-2.5 rounded-full", color)} />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function NavButton({
+  label,
+  onClick,
+  children,
+}: {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      {children}
+    </button>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MiniCalendar() {
-  const today = new Date();
-  const [currentDate, setCurrentDate] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1),
-  );
+  const dispatch = useAppDispatch();
+  const { records } = useAppSelector((state) => state.attendance);
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth(); // 0-indexed
+  const today = useMemo(() => new Date(), []);
+  const [viewed, setViewed] = useState(() => ({
+    year: today.getFullYear(),
+    month: today.getMonth(),
+  }));
+  const { year, month } = viewed;
 
   const { nationalHolidaySet, jointLeaveSet, holidayNames, isLoading } =
     useHolidays(year);
 
-  // ── Navigasi bulan ──
-  const prevMonth = useCallback(() => {
-    setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  }, []);
+  // ── Fetch attendance data saat bulan berubah ──
+  useEffect(() => {
+    const daysInMonth = getDaysInMonth(year, month);
 
-  const nextMonth = useCallback(() => {
-    setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-  }, []);
+    dispatch(
+      fetchAttendances({
+        start_date: toDateStr(year, month, 1),
+        end_date: toDateStr(year, month, daysInMonth),
+        limit: CALENDAR_FETCH_LIMIT,
+      }),
+    );
+  }, [year, month, dispatch]);
 
-  // ── Bangun cell kalender (useMemo: rebuild saat bulan atau holiday data berubah) ──
-  const startOffset = getStartOffset(year, month);
-  const totalDays = getDaysInMonth(year, month);
-  const todayDay = today.getDate();
-  const isCurrentMonth =
-    today.getFullYear() === year && today.getMonth() === month;
+  // ── Map records berdasarkan tanggal untuk lookup O(1) ──
+  const recordsByDate = useMemo(
+    () => new Map(records.map((r) => [r.date, r])),
+    [records],
+  );
 
-  const cells = useMemo<DayCell[]>(() => {
-    const result: DayCell[] = [];
+  // ── Navigasi bulan (Date menangani pergantian tahun otomatis) ──
+  const shiftMonth = (delta: number) => {
+    setViewed(({ year: y, month: m }) => {
+      const next = new Date(y, m + delta, 1);
+      return { year: next.getFullYear(), month: next.getMonth() };
+    });
+  };
 
-    for (let day = 1; day <= totalDays; day++) {
-      const dateStr = toDateStr(year, month, day);
-      const jsDay = new Date(year, month, day).getDay();
-      const weekdayIdx = jsDay === 0 ? 6 : jsDay - 1; // 0=Mon … 6=Sun
-      const isWeekend = weekdayIdx >= 5;
-      const isToday = isCurrentMonth && day === todayDay;
-      const isPast = isCurrentMonth
-        ? day < todayDay
-        : new Date(year, month, day) <
-          new Date(today.getFullYear(), today.getMonth(), 1);
+  const startOffset = getWeekdayIndex(year, month, 1);
 
-      const isNational = nationalHolidaySet.has(dateStr);
-      const isJoint = jointLeaveSet.has(dateStr);
-      const holidayName = holidayNames.get(dateStr);
-
-      let status: DayStatus = "future";
-      let tooltip: string | undefined;
-
-      if (isNational) {
-        status = isToday ? "today_holiday" : "national_holiday";
-        tooltip = holidayName;
-      } else if (isJoint) {
-        status = "joint_leave";
-        tooltip = holidayName;
-      } else if (isWeekend) {
-        status = "weekend";
-      } else if (isToday) {
-        status = "today";
-      } else if (isPast) {
-        // TODO: ganti dengan data real timesheet saat sudah ada endpoint
-        status = "filled";
-      } else {
-        status = "future";
-      }
-
-      result.push({ date: day, dateStr, status, tooltip });
-    }
-
-    return result;
-  }, [
-    year,
-    month,
-    totalDays,
-    todayDay,
-    isCurrentMonth,
-    nationalHolidaySet,
-    jointLeaveSet,
-    holidayNames,
-  ]);
+  const cells = useMemo(
+    () =>
+      buildCells({
+        year,
+        month,
+        today,
+        nationalHolidaySet,
+        jointLeaveSet,
+        holidayNames,
+        recordsByDate,
+      }),
+    [
+      year,
+      month,
+      today,
+      nationalHolidaySet,
+      jointLeaveSet,
+      holidayNames,
+      recordsByDate,
+    ],
+  );
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       {/* ── Header + Navigasi ── */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold">
-            {MONTH_NAMES[month]} {year}
-          </h3>
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="inline-block size-2.5 rounded-full bg-emerald-500" />
-              Terisi
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block size-2.5 rounded-full bg-red-400" />
-              Kurang
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block size-2.5 rounded-full bg-amber-400" />
-              Lembur
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block size-2.5 rounded-full bg-rose-500" />
-              Libur
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block size-2.5 rounded-full bg-purple-400" />
-              Cuti Bersama
-            </span>
-          </div>
+          <h3 className="font-semibold">{`${MONTH_NAMES[month]} ${year}`}</h3>
+          <Legend />
         </div>
 
-        {/* Tombol navigasi */}
         <div className="flex items-center gap-1">
-          <button
-            onClick={prevMonth}
-            aria-label="Bulan sebelumnya"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
+          <NavButton label="Bulan sebelumnya" onClick={() => shiftMonth(-1)}>
             <ChevronLeft className="size-4" />
-          </button>
-          <button
-            onClick={nextMonth}
-            aria-label="Bulan berikutnya"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
+          </NavButton>
+          <NavButton label="Bulan berikutnya" onClick={() => shiftMonth(1)}>
             <ChevronRight className="size-4" />
-          </button>
+          </NavButton>
         </div>
       </div>
 
@@ -220,7 +366,6 @@ export default function MiniCalendar() {
         <CalendarSkeleton />
       ) : (
         <div className="grid grid-cols-7 gap-1">
-          {/* Header nama hari */}
           {WEEKDAYS.map((d) => (
             <div
               key={d}
@@ -231,11 +376,10 @@ export default function MiniCalendar() {
           ))}
 
           {/* Offset kosong di awal bulan */}
-          {Array.from({ length: startOffset }).map((_, i) => (
-            <div key={`empty-${i}`} />
+          {OFFSET_KEYS.slice(0, startOffset).map((key) => (
+            <div key={key} />
           ))}
 
-          {/* Hari-hari */}
           {cells.map(({ date, status, tooltip }) => (
             <div
               key={date}
@@ -244,10 +388,6 @@ export default function MiniCalendar() {
                 "flex aspect-square items-center justify-center rounded-md text-xs transition-all",
                 statusStyles[status],
                 tooltip && "cursor-help",
-                (status === "filled" ||
-                  status === "missing" ||
-                  status === "overtime") &&
-                  "cursor-pointer hover:opacity-80",
               )}
             >
               {date}

@@ -1,41 +1,65 @@
-import { useState, useCallback, useEffect } from "react";
-import { useAppSelector, useAppDispatch } from "@/hooks/use-store";
+import type { CheckoutData } from "@/features/dashboard/components/checkout-modal";
+import CheckoutModal from "@/features/dashboard/components/checkout-modal";
+import type { LeaveData } from "@/features/dashboard/components/leave-modal";
+import LeaveModal from "@/features/dashboard/components/leave-modal";
+import MiniCalendar from "@/features/dashboard/components/mini-calendar";
+import type { OvertimeFormValues } from "@/features/dashboard/components/overtime-modal";
+import OvertimeModal from "@/features/dashboard/components/overtime-modal";
+import QuickActions from "@/features/dashboard/components/quick-actions";
+import RecentActivity from "@/features/dashboard/components/recent-activity";
+import StatCard from "@/features/dashboard/components/stat-card";
+import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
+import { useHolidays } from "@/features/dashboard/hooks/use-holidays";
+import { useAppDispatch, useAppSelector } from "@/hooks/use-store";
 import {
+  checkInPresence,
+  clockInOvertime,
+  clockOutOvertime,
+  clockOutPresence,
+  fetchAttendances,
+  fetchTodayAttendance,
+  submitLeave,
+} from "@/stores/attendance/async";
+import { setLocalCheckIn } from "@/stores/attendance/slice";
+import { getDashboardSummary } from "@/stores/dashboard/async";
+import {
+  AlertCircle,
   CalendarCheck,
   CalendarX,
   Clock,
   Timer,
-  AlertCircle,
 } from "lucide-react";
-import StatCard from "@/features/dashboard/components/stat-card";
-import MiniCalendar from "@/features/dashboard/components/mini-calendar";
-import RecentActivity from "@/features/dashboard/components/recent-activity";
-import QuickActions from "@/features/dashboard/components/quick-actions";
-import CheckoutModal, {
-  type CheckoutData,
-} from "@/features/dashboard/components/checkout-modal";
-import LeaveModal, {
-  type LeaveData,
-} from "@/features/dashboard/components/leave-modal";
-import { useHolidays } from "@/features/dashboard/hooks/use-holidays";
-import OvertimeModal, {
-  type OvertimeFormValues,
-} from "@/features/dashboard/components/overtime-modal";
-import { useDashboardSummary } from "@/features/dashboard/hooks/use-dashboard-summary";
-import { setLocalCheckIn } from "@/stores/attendance/slice";
-import {
-  checkInPresence,
-  clockOutPresence,
-  submitLeave,
-  fetchAttendances,
-  fetchTodayAttendance,
-  clockInOvertime,
-  clockOutOvertime,
-} from "@/stores/attendance/async";
-import { getDashboardSummary } from "@/stores/dashboard/async";
+import { useCallback, useEffect, useState } from "react";
 import Swal from "sweetalert2";
 
-// ── Skeleton placeholder untuk StatCard saat loading ──
+const RECENT_LIMIT = 5;
+const CHECK_INTERVAL_MS = 60_000;
+const HOUR_MS = 60 * 60 * 1000;
+const OVERTIME_THRESHOLD_WORKDAY_HOURS = 3;
+const OVERTIME_THRESHOLD_OFFDAY_HOURS = 8;
+const SWAL_THEME = { background: "#1D1D1D", color: "#fff" } as const;
+const SKELETON_KEYS = ["a", "b", "c", "d", "e"] as const;
+
+function notifySuccess(text: string, title = "Berhasil") {
+  Swal.fire({
+    icon: "success",
+    title,
+    text,
+    ...SWAL_THEME,
+    timer: 1500,
+    showConfirmButton: false,
+  });
+}
+
+function notifyError(err: unknown, fallback: string) {
+  Swal.fire({
+    icon: "error",
+    title: "Oops..",
+    text: typeof err === "string" && err ? err : fallback,
+    ...SWAL_THEME,
+  });
+}
+
 function StatCardSkeleton() {
   return (
     <div className="flex min-w-0 animate-pulse flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4">
@@ -53,7 +77,6 @@ export default function DashboardPage() {
   const user = useAppSelector((state) => state.auth.entities);
   const { summary, isLoading, error } = useDashboardSummary();
 
-  // ── Attendance state ──
   const dispatch = useAppDispatch();
   const {
     isCheckedIn,
@@ -65,6 +88,7 @@ export default function DashboardPage() {
     isOvertime,
     overtimeClockInTime,
   } = useAppSelector((state) => state.attendance);
+
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showOvertimeModal, setShowOvertimeModal] = useState(false);
@@ -80,70 +104,52 @@ export default function DashboardPage() {
       return;
     }
 
+    const clockInDate = new Date(overtimeClockInTime);
+    const clockInMs = clockInDate.valueOf();
+    const day = clockInDate.getDay();
+    const isWeekend = day === 0 || day === 6;
+    const dateStr = clockInDate.toISOString().split("T")[0];
+    const isHoliday =
+      nationalHolidaySet.has(dateStr) || jointLeaveSet.has(dateStr);
+
+    const thresholdHours =
+      isWeekend || isHoliday
+        ? OVERTIME_THRESHOLD_OFFDAY_HOURS
+        : OVERTIME_THRESHOLD_WORKDAY_HOURS;
+    const thresholdMs = thresholdHours * HOUR_MS;
+
     const checkThreshold = () => {
-      const clockInDate = new Date(overtimeClockInTime);
-      const day = clockInDate.getDay();
-      const isWeekend = day === 0 || day === 6;
-
-      const dateStr = clockInDate.toISOString().split("T")[0];
-      const isHoliday =
-        nationalHolidaySet.has(dateStr) || jointLeaveSet.has(dateStr);
-
-      const isOffDay = isWeekend || isHoliday;
-      const thresholdHours = isOffDay ? 8 : 3;
-      const thresholdMs = thresholdHours * 60 * 60 * 1000;
-
-      const now = new Date().getTime();
-      const diff = now - clockInDate.getTime();
-
-      if (diff >= thresholdMs) {
-        setIsOvertimeReadyToClockOut(true);
-      } else {
-        setIsOvertimeReadyToClockOut(false);
-      }
+      setIsOvertimeReadyToClockOut(Date.now() - clockInMs >= thresholdMs);
     };
 
     checkThreshold();
-    const interval = setInterval(checkThreshold, 60000);
+    const interval = setInterval(checkThreshold, CHECK_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [isOvertime, overtimeClockInTime, nationalHolidaySet, jointLeaveSet]);
 
+  const refreshData = useCallback(() => {
+    dispatch(fetchAttendances({ limit: RECENT_LIMIT }));
+    dispatch(fetchTodayAttendance());
+    dispatch(getDashboardSummary());
+  }, [dispatch]);
+
   useEffect(() => {
-    dispatch(fetchAttendances({ limit: 5 }));
+    dispatch(fetchAttendances({ limit: RECENT_LIMIT }));
     dispatch(fetchTodayAttendance());
   }, [dispatch]);
 
   const handleCheckIn = useCallback(() => {
-    const now = new Date().toISOString();
-    dispatch(setLocalCheckIn(now));
+    dispatch(setLocalCheckIn(new Date().toISOString()));
 
     dispatch(checkInPresence())
       .unwrap()
       .then(() => {
-        dispatch(fetchAttendances({ limit: 5 }));
-        dispatch(fetchTodayAttendance());
-        dispatch(getDashboardSummary());
-        Swal.fire({
-          icon: "success",
-          title: "Berhasil Check-In",
-          text: "Waktu check-in Anda telah dicatat",
-          background: "#1D1D1D",
-          color: "#fff",
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        refreshData();
+        notifySuccess("Waktu check-in Anda telah dicatat", "Berhasil Check-In");
       })
-      .catch((err) => {
-        Swal.fire({
-          icon: "error",
-          title: "Oops..",
-          text: err || "Gagal mencatat check-in",
-          background: "#1D1D1D",
-          color: "#fff",
-        });
-      });
-  }, [dispatch, user?.uuid]);
+      .catch((err) => notifyError(err, "Gagal mencatat check-in"));
+  }, [dispatch, refreshData]);
 
   const handleCheckOutClick = useCallback(() => {
     setShowCheckoutModal(true);
@@ -152,34 +158,17 @@ export default function DashboardPage() {
   const handleOvertimeClick = useCallback(() => {
     if (isOvertimeReadyToClockOut) {
       setShowOvertimeModal(true);
-    } else {
-      dispatch(clockInOvertime())
-        .unwrap()
-        .then(() => {
-          dispatch(fetchAttendances({ limit: 5 }));
-          dispatch(fetchTodayAttendance());
-          dispatch(getDashboardSummary());
-          Swal.fire({
-            icon: "success",
-            title: "Berhasil",
-            text: "Lembur berhasil dimulai",
-            background: "#1D1D1D",
-            color: "#fff",
-            timer: 1500,
-            showConfirmButton: false,
-          });
-        })
-        .catch((err) => {
-          Swal.fire({
-            icon: "error",
-            title: "Oops..",
-            text: err || "Gagal memulai lembur",
-            background: "#1D1D1D",
-            color: "#fff",
-          });
-        });
+      return;
     }
-  }, [dispatch, isOvertimeReadyToClockOut]);
+
+    dispatch(clockInOvertime())
+      .unwrap()
+      .then(() => {
+        refreshData();
+        notifySuccess("Lembur berhasil dimulai");
+      })
+      .catch((err) => notifyError(err, "Gagal memulai lembur"));
+  }, [dispatch, refreshData, isOvertimeReadyToClockOut]);
 
   const handleOvertimeSubmit = useCallback(
     (data: OvertimeFormValues) => {
@@ -188,30 +177,12 @@ export default function DashboardPage() {
       dispatch(clockOutOvertime(data))
         .unwrap()
         .then(() => {
-          dispatch(fetchAttendances({ limit: 5 }));
-          dispatch(fetchTodayAttendance());
-          dispatch(getDashboardSummary());
-          Swal.fire({
-            icon: "success",
-            title: "Berhasil",
-            text: "Lembur berhasil diselesaikan",
-            background: "#1D1D1D",
-            color: "#fff",
-            timer: 1500,
-            showConfirmButton: false,
-          });
+          refreshData();
+          notifySuccess("Lembur berhasil diselesaikan");
         })
-        .catch((err) => {
-          Swal.fire({
-            icon: "error",
-            title: "Oops..",
-            text: err || "Gagal menyelesaikan lembur",
-            background: "#1D1D1D",
-            color: "#fff",
-          });
-        });
+        .catch((err) => notifyError(err, "Gagal menyelesaikan lembur"));
     },
-    [dispatch],
+    [dispatch, refreshData],
   );
 
   const handleCheckoutSubmit = useCallback(
@@ -220,38 +191,20 @@ export default function DashboardPage() {
 
       if (!user?.uuid || !checkInTime) return;
 
-      const payload = {
-        projectName: data.projectName,
-        activityDescription: data.activityDescription,
-      };
-
-      dispatch(clockOutPresence(payload))
+      dispatch(
+        clockOutPresence({
+          projectName: data.projectName,
+          activityDescription: data.activityDescription,
+        }),
+      )
         .unwrap()
         .then(() => {
-          dispatch(fetchAttendances({ limit: 5 }));
-          dispatch(fetchTodayAttendance());
-          dispatch(getDashboardSummary());
-          Swal.fire({
-            icon: "success",
-            title: "Berhasil",
-            text: "Data presensi berhasil dikirim",
-            background: "#1D1D1D",
-            color: "#fff",
-            timer: 1500,
-            showConfirmButton: false,
-          });
+          refreshData();
+          notifySuccess("Data presensi berhasil dikirim");
         })
-        .catch((err) => {
-          Swal.fire({
-            icon: "error",
-            title: "Oops..",
-            text: err || "Gagal mengirim data presensi",
-            background: "#1D1D1D",
-            color: "#fff",
-          });
-        });
+        .catch((err) => notifyError(err, "Gagal mengirim data presensi"));
     },
-    [dispatch, user?.uuid, checkInTime, isOvertime],
+    [dispatch, refreshData, user?.uuid, checkInTime],
   );
 
   const handleLeaveClick = useCallback(() => {
@@ -262,46 +215,30 @@ export default function DashboardPage() {
     (data: LeaveData) => {
       setShowLeaveModal(false);
 
-      const payload = {
-        date: data.date,
-        type: data.type,
-        projectName: data.projectName,
-      };
-
-      dispatch(submitLeave(payload))
+      dispatch(
+        submitLeave({
+          date: data.date,
+          type: data.type,
+          projectName: data.projectName,
+        }),
+      )
         .unwrap()
         .then(() => {
-          dispatch(fetchAttendances({ limit: 5 }));
-          dispatch(fetchTodayAttendance());
-          dispatch(getDashboardSummary());
-          Swal.fire({
-            icon: "success",
-            title: "Berhasil",
-            text: "Pengajuan izin berhasil dikirim",
-            background: "#1D1D1D",
-            color: "#fff",
-            timer: 1500,
-            showConfirmButton: false,
-          });
+          refreshData();
+          notifySuccess("Pengajuan izin berhasil dikirim");
         })
-        .catch((err) => {
-          Swal.fire({
-            icon: "error",
-            title: "Oops..",
-            text: err || "Gagal mengirim pengajuan",
-            background: "#1D1D1D",
-            color: "#fff",
-          });
-        });
+        .catch((err) => notifyError(err, "Gagal mengirim pengajuan"));
     },
-    [dispatch],
+    [dispatch, refreshData],
   );
 
-  // Label bulan saat ini
   const currentMonth = new Date().toLocaleDateString("id-ID", {
     month: "long",
     year: "numeric",
   });
+
+  const userLabel = user?.name ?? user?.npp;
+  const missingTotal = summary?.missingAttendanceTotal ?? 0;
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -310,15 +247,12 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Halo,{" "}
-            <span className="font-semibold text-foreground">
-              {user?.name ?? user?.npp}
-            </span>
-            ! Berikut ringkasan timesheet Anda bulan ini.
+            {`Halo, `}
+            <span className="font-semibold text-foreground">{userLabel}</span>
+            {` ! Berikut ringkasan timesheet Anda bulan ini.`}
           </p>
         </div>
 
-        {/* Check-in / Check-out */}
         <QuickActions
           isCheckedIn={isCheckedIn}
           isCheckedOut={isCheckedOut}
@@ -346,13 +280,7 @@ export default function DashboardPage() {
       {/* Stat cards — skeleton saat loading, data real setelahnya */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {isLoading ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
+          SKELETON_KEYS.map((key) => <StatCardSkeleton key={key} />)
         ) : (
           <>
             <StatCard
@@ -374,11 +302,7 @@ export default function DashboardPage() {
               value={summary?.missingAttendanceTotal ?? "–"}
               subtitle="hari terlewat"
               icon={CalendarX}
-              variant={
-                (summary?.missingAttendanceTotal ?? 0) > 0
-                  ? "danger"
-                  : "default"
-              }
+              variant={missingTotal > 0 ? "danger" : "default"}
             />
             <StatCard
               title="Total Hari Lembur"
@@ -400,32 +324,26 @@ export default function DashboardPage() {
 
       {/* Main grid: Calendar | Recent Activity */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-1">
           <MiniCalendar />
         </div>
 
-        {/* Right column */}
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <RecentActivity data={records} loading={recordsLoading} />
         </div>
       </div>
 
-      {/* Checkout Modal */}
+      {/* Modals */}
       <CheckoutModal
         open={showCheckoutModal}
         onOpenChange={setShowCheckoutModal}
         onSubmit={handleCheckoutSubmit}
       />
-
-      {/* Leave Modal */}
       <LeaveModal
         open={showLeaveModal}
         onOpenChange={setShowLeaveModal}
         onSubmit={handleLeaveSubmit}
       />
-
-      {/* Overtime Modal */}
       <OvertimeModal
         open={showOvertimeModal}
         onOpenChange={setShowOvertimeModal}

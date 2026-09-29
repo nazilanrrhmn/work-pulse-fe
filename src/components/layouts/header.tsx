@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from "@/hooks/use-store";
 import { logout } from "@/stores/auth/slice";
-import { Bell, LogOut, Menu, User } from "lucide-react";
+import { LogOut, Menu, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
@@ -30,7 +30,7 @@ export default function Header({ onMenuOpen }: HeaderProps) {
           <Menu className="size-5" />
         </button>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="min-w-0 truncate text-sm text-muted-foreground">
           Welcome back,{" "}
           <span className="font-semibold text-foreground">
             {user?.name ?? user?.npp ?? "—"}
@@ -39,26 +39,19 @@ export default function Header({ onMenuOpen }: HeaderProps) {
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2">
-        {/* Notification bell */}
-        <button
-          aria-label="Notifications"
-          className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Bell className="size-4" />
-        </button>
+      <div className="flex shrink-0 items-center gap-2">
 
         {/* User avatar + info */}
         <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm md:px-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
             {user?.name?.charAt(0).toUpperCase() ??
               user?.npp?.charAt(0).toUpperCase() ?? (
                 <User className="size-4" />
               )}
           </div>
-          <div className="hidden flex-col sm:flex">
-            <span className="font-medium leading-none">{user?.name ?? user?.npp}</span>
-            <span className="text-xs text-muted-foreground">{user?.npp}</span>
+          <div className="hidden max-w-[140px] flex-col sm:flex lg:max-w-[200px]">
+            <span className="truncate font-medium leading-none">{user?.name ?? user?.npp}</span>
+            <span className="truncate text-xs text-muted-foreground">{user?.npp}</span>
           </div>
         </div>
 

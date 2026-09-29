@@ -16,27 +16,60 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { LogOut } from "lucide-react";
 
+// ── Constants ──
+const DESCRIPTION_MIN_LENGTH = 5;
+const DESCRIPTION_MAX_LENGTH = 500;
+
 // ── Validation schema ──
 const checkoutSchema = z.object({
   projectName: z.string().min(1, "Nama project harus diisi"),
   activityDescription: z
     .string()
-    .min(5, "Deskripsi aktivitas minimal 5 karakter")
-    .max(500, "Deskripsi aktivitas maksimal 500 karakter"),
+    .min(
+      DESCRIPTION_MIN_LENGTH,
+      `Deskripsi aktivitas minimal ${DESCRIPTION_MIN_LENGTH} karakter`,
+    )
+    .max(
+      DESCRIPTION_MAX_LENGTH,
+      `Deskripsi aktivitas maksimal ${DESCRIPTION_MAX_LENGTH} karakter`,
+    ),
 });
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 export interface CheckoutData extends CheckoutFormValues {
-  checkOutTime: Date;
+  readonly checkOutTime: Date;
 }
 
 interface CheckoutModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: CheckoutData) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSubmit: (data: CheckoutData) => void;
 }
 
+const DEFAULT_VALUES: CheckoutFormValues = {
+  projectName: "",
+  activityDescription: "",
+};
+
+// ── Header ──
+function ModalHeader() {
+  return (
+    <div className="mb-5 flex items-center gap-2.5">
+      <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <LogOut className="size-5" />
+      </div>
+      <div>
+        <DialogTitle>Check-out</DialogTitle>
+        <DialogDescription>
+          Catat kegiatan Anda sebelum pulang
+        </DialogDescription>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal ──
 export default function CheckoutModal({
   open,
   onOpenChange,
@@ -46,27 +79,19 @@ export default function CheckoutModal({
     control,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { isSubmitting },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: {
-      projectName: "",
-      activityDescription: "",
-    },
+    defaultValues: DEFAULT_VALUES,
   });
 
   const handleFormSubmit = (values: CheckoutFormValues) => {
-    onSubmit({
-      ...values,
-      checkOutTime: new Date(),
-    });
+    onSubmit({ ...values, checkOutTime: new Date() });
     reset();
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      reset();
-    }
+    if (!nextOpen) reset();
     onOpenChange(nextOpen);
   };
 
@@ -76,65 +101,50 @@ export default function CheckoutModal({
         <DialogBackdrop />
         <DialogPopup>
           <DialogClose />
+          <ModalHeader />
 
-          {/* Header */}
-          <div className="mb-5">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <LogOut className="size-5" />
-              </div>
-              <div>
-                <DialogTitle>Check-out</DialogTitle>
-                <DialogDescription>
-                  Catat kegiatan Anda sebelum pulang
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
-
-          {/* Form */}
           <form
             onSubmit={handleSubmit(handleFormSubmit)}
             className="flex flex-col gap-4"
           >
             {/* Project Name */}
-            <Field>
-              <FieldLabel htmlFor="projectName">Nama Project</FieldLabel>
-              <Controller
-                name="projectName"
-                control={control}
-                render={({ field }) => (
+            <Controller
+              name="projectName"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>Nama Project</FieldLabel>
                   <Input
-                    id="projectName"
+                    id={field.name}
                     placeholder="Masukkan nama project..."
-                    aria-invalid={!!errors.projectName}
+                    aria-invalid={fieldState.invalid}
                     {...field}
                   />
-                )}
-              />
-              <FieldError>{errors.projectName?.message}</FieldError>
-            </Field>
+                  <FieldError>{fieldState.error?.message}</FieldError>
+                </Field>
+              )}
+            />
 
             {/* Activity Description */}
-            <Field>
-              <FieldLabel htmlFor="activityDescription">
-                Deskripsi Kegiatan
-              </FieldLabel>
-              <Controller
-                name="activityDescription"
-                control={control}
-                render={({ field }) => (
+            <Controller
+              name="activityDescription"
+              control={control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>
+                    Deskripsi Kegiatan
+                  </FieldLabel>
                   <Textarea
-                    id="activityDescription"
+                    id={field.name}
                     placeholder="Jelaskan kegiatan yang dilakukan hari ini..."
                     rows={4}
-                    aria-invalid={!!errors.activityDescription}
+                    aria-invalid={fieldState.invalid}
                     {...field}
                   />
-                )}
-              />
-              <FieldError>{errors.activityDescription?.message}</FieldError>
-            </Field>
+                  <FieldError>{fieldState.error?.message}</FieldError>
+                </Field>
+              )}
+            />
 
             {/* Actions */}
             <div className="mt-1 flex items-center justify-end gap-2">
