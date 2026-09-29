@@ -1,20 +1,36 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { apiV1 } from "../../libs/api";
-import type { UpdateBniProfileDTO } from "../../features/profile/types/profile.dto";
+import type { UserProfileDTO } from "../../features/profile/types/profile.dto";
 
-// NOTE: Add UpdateProfileDTO later if necessary, for now we will just use any or inline type
+export const fetchProfile = createAsyncThunk<UserProfileDTO>(
+  "profile/fetch",
+  async (_, thunkAPI) => {
+    try {
+      const res = await apiV1.get<UserProfileDTO>("/users");
+      return res.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        return thunkAPI.rejectWithValue(error.message);
+      }
+      return thunkAPI.rejectWithValue("Failed to fetch profile");
+    }
+  },
+);
+
 export interface UpdateProfileDTO {
-  name: string;
-  email: string;
-  noHp: string;
-  npp: string;
+  nppBni: number;
+  manager: string;
+  departemenHead: string;
+  divisi: string;
+  departemen: string;
+  kelompok: string;
 }
 
 export const updateProfile = createAsyncThunk<void, UpdateProfileDTO>(
   "profile/updateGeneral",
   async (payload, thunkAPI) => {
     try {
-      await apiV1.patch("/users/profile", payload);
+      await apiV1.patch("/users/profile/bni", payload);
     } catch (error) {
       if (error instanceof Error) {
         return thunkAPI.rejectWithValue(error.message);
@@ -30,7 +46,7 @@ export const uploadSignature = createAsyncThunk<void, File>(
     try {
       const formData = new FormData();
       formData.append("file", file);
-      
+
       await apiV1.patch("/users/signatures", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -41,20 +57,6 @@ export const uploadSignature = createAsyncThunk<void, File>(
         return thunkAPI.rejectWithValue(error.message);
       }
       return thunkAPI.rejectWithValue("Failed to upload signature");
-    }
-  }
-);
-
-export const updateBniProfile = createAsyncThunk<void, UpdateBniProfileDTO>(
-  "profile/updateBni",
-  async (payload, thunkAPI) => {
-    try {
-      await apiV1.patch("/users/profile/bni", payload);
-    } catch (error) {
-      if (error instanceof Error) {
-        return thunkAPI.rejectWithValue(error.message);
-      }
-      return thunkAPI.rejectWithValue("Failed to update BNI profile");
     }
   },
 );

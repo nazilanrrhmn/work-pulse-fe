@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/hooks/use-store";
-import { uploadSignature } from "@/stores/profile/async";
+import { uploadSignature, fetchProfile } from "@/stores/profile/async";
 
 export function useSignatureUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -35,6 +35,8 @@ export function useSignatureUpload() {
     try {
       await dispatch(uploadSignature(selectedFile)).unwrap();
       setSuccess(true);
+      // Re-fetch profile to get updated signatureImagePath
+      dispatch(fetchProfile());
       // Clean up after success
       setTimeout(() => {
         handleRemoveFile();

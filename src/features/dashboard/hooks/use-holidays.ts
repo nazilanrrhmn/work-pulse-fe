@@ -32,7 +32,7 @@ export function useHolidays(year: number) {
     if (!holidaysForYear) return new Set();
     return new Set(
       holidaysForYear
-        .filter((h) => h.type === "National Holiday")
+        .filter((h) => h.type === "Public Holiday")
         .map((h) => h.date),
     );
   }, [holidaysForYear]);

@@ -8,7 +8,10 @@ interface RecentActivityProps {
   loading?: boolean;
 }
 
-export default function RecentActivity({ data = [], loading = false }: RecentActivityProps) {
+export default function RecentActivity({
+  data = [],
+  loading = false,
+}: RecentActivityProps) {
   return (
     <div className="w-full overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-4 sm:px-5">
@@ -23,19 +26,25 @@ export default function RecentActivity({ data = [], loading = false }: RecentAct
 
       <div className="divide-y divide-border">
         {loading ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">Memuat data...</div>
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            Memuat data...
+          </div>
         ) : data.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">Belum ada aktivitas terbaru</div>
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            Belum ada aktivitas terbaru
+          </div>
         ) : (
           data.map((entry) => {
             const dateObj = new Date(entry.date);
             const dateFmt = dateObj.toLocaleDateString("id-ID", {
               day: "2-digit",
               month: "short",
-              year: "numeric"
+              year: "numeric",
             });
-            const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "long" });
-            const isPresent = entry.type === "PRESENT";
+            const dayName = dateObj.toLocaleDateString("id-ID", {
+              weekday: "long",
+            });
+            const isPresent = entry.type === "HADIR";
             const isLeave = ["CUTI", "IZIN", "SAKIT"].includes(entry.type);
 
             return (
@@ -70,10 +79,10 @@ export default function RecentActivity({ data = [], loading = false }: RecentAct
                       <span className="flex items-center gap-1">
                         <Clock className="size-3 shrink-0" />
                         {entry.clockIn ? entry.clockIn.slice(0, 5) : "--:--"}–
-                        {entry.clockOut ? entry.clockOut.slice(0, 5) : "--:--"}
+                        {(entry.overtimeClockOut || entry.clockOut) ? (entry.overtimeClockOut || entry.clockOut)!.slice(0, 5) : "--:--"}
                       </span>
                     )}
-                    {entry.isOvertime && (
+                    {entry.overtime && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                         + Lembur
                       </span>
@@ -85,7 +94,7 @@ export default function RecentActivity({ data = [], loading = false }: RecentAct
                 <div
                   className={cn(
                     "hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold sm:block",
-                    entry.isOvertime
+                    entry.overtime
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                       : isLeave
                         ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"

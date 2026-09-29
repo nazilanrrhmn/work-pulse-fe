@@ -21,3 +21,22 @@ apiV1.interceptors.request.use(
     return Promise.reject(error);
   },
 );
+
+export const apiV2 = axios.create({
+  baseURL: `${baseURL}/api/v2`,
+});
+
+apiV2.interceptors.request.use(
+  (config) => {
+    const token = Cookies.get("token");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);

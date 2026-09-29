@@ -1,11 +1,14 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { clockOutPresence, checkInPresence, submitLeave, fetchAttendances, type AttendanceResponseDTO } from "./async";
+import { clockOutPresence, checkInPresence, submitLeave, fetchAttendances, fetchTodayAttendance, clockInOvertime, clockOutOvertime, type AttendanceResponseDTO } from "./async";
 
 export interface AttendanceState {
   isCheckedIn: boolean;
   isCheckedOut: boolean;
+  isOnLeave: boolean;
   checkInTime: string | null;
   checkOutTime: string | null;
+  isOvertime: boolean;
+  overtimeClockInTime: string | null;
   loading: "idle" | "pending" | "succeeded" | "failed";
   error: string | null;
   records: AttendanceResponseDTO[];
@@ -17,11 +20,16 @@ export interface AttendanceState {
   };
 }
 
+const LEAVE_TYPES = ["SICK", "ANNUAL", "PERMISSION", "OTHER", "LEAVE", "CUTI", "SAKIT", "IZIN"];
+
 const initialState: AttendanceState = {
   isCheckedIn: false,
   isCheckedOut: false,
+  isOnLeave: false,
   checkInTime: null,
   checkOutTime: null,
+  isOvertime: false,
+  overtimeClockInTime: null,
   loading: "idle",
   error: null,
   records: [],
@@ -44,8 +52,11 @@ export const attendanceSlice = createSlice({
     resetAttendance: (state) => {
       state.isCheckedIn = false;
       state.isCheckedOut = false;
+      state.isOnLeave = false;
       state.checkInTime = null;
       state.checkOutTime = null;
+      state.isOvertime = false;
+      state.overtimeClockInTime = null;
       state.loading = "idle";
       state.error = null;
     }
@@ -82,9 +93,68 @@ export const attendanceSlice = createSlice({
       })
       .addCase(submitLeave.fulfilled, (state) => {
         state.loading = "succeeded";
-        // Can optionally set a flag or keep it as is, depends on UI needs.
+        state.isOnLeave = true;
       })
       .addCase(submitLeave.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload as string;
+      })
+      .addCase(fetchTodayAttendance.pending, (state) => {
+        state.loading = "pending";
+      })
+      .addCase(fetchTodayAttendance.fulfilled, (state, action) => {
+        state.loading = "succeeded";
+        if (action.payload) {
+          // Detect leave from today's attendance type
+          if (action.payload.type && LEAVE_TYPES.includes(action.payload.type.toUpperCase())) {
+            state.isOnLeave = true;
+          }
+          if (action.payload.clockIn) {
+            state.isCheckedIn = true;
+            state.checkInTime = `${action.payload.date}T${action.payload.clockIn}`;
+          }
+          if (action.payload.clockOut) {
+            state.isCheckedOut = true;
+            state.checkOutTime = `${action.payload.date}T${action.payload.clockOut}`;
+          }
+          if (action.payload.overtime) {
+            state.isOvertime = true;
+            if (action.payload.overtimeClockIn) {
+              state.overtimeClockInTime = `${action.payload.date}T${action.payload.overtimeClockIn}`;
+            }
+            if (action.payload.overtimeClockOut) {
+              state.overtimeClockInTime = null;
+            }
+          }
+        }
+      })
+      .addCase(fetchTodayAttendance.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload as string;
+      })
+      .addCase(clockInOvertime.pending, (state) => {
+        state.loading = "pending";
+        state.error = null;
+      })
+      .addCase(clockInOvertime.fulfilled, (state) => {
+        state.loading = "succeeded";
+        state.isOvertime = true;
+        const now = new Date().toISOString();
+        state.overtimeClockInTime = now;
+      })
+      .addCase(clockInOvertime.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload as string;
+      })
+      .addCase(clockOutOvertime.pending, (state) => {
+        state.loading = "pending";
+        state.error = null;
+      })
+      .addCase(clockOutOvertime.fulfilled, (state) => {
+        state.loading = "succeeded";
+        state.overtimeClockInTime = null;
+      })
+      .addCase(clockOutOvertime.rejected, (state, action) => {
         state.loading = "failed";
         state.error = action.payload as string;
       })

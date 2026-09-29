@@ -8,9 +8,9 @@ import { useAppSelector } from "../../hooks/use-store";
 export default function ProtectedRoute() {
   const user = useAppSelector((state) => state.auth.entities);
 
-  // if (!user) {
-  //   return <Navigate to="/login" replace />;
-  // }
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   return <Outlet />;
 }

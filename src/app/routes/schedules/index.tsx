@@ -9,8 +9,11 @@ import {
   Clock,
   AlertCircle,
   FileDown,
+  Loader2,
 } from "lucide-react";
 import { cn } from "cn";
+import { apiV1 } from "@/libs/api";
+import Swal from "sweetalert2";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type AttendanceStatus = "present" | "absent" | "holiday" | "empty" | "weekend";
@@ -59,10 +62,10 @@ function generateMonthData(year: number, month: number, records: AttendanceRespo
       } else {
         status = "present";
         checkIn = record.clockIn ? record.clockIn.slice(0, 5) : null;
-        checkOut = record.clockOut ? record.clockOut.slice(0, 5) : null;
+        checkOut = (record.overtimeClockOut || record.clockOut) ? (record.overtimeClockOut || record.clockOut)!.slice(0, 5) : null;
         project = record.project;
         notes = record.activityDescription;
-        if (record.isOvertime) {
+        if (record.overtime) {
           notes = notes ? `${notes} (+ Lembur)` : "+ Lembur";
         }
         
@@ -214,6 +217,7 @@ export default function TimesheetPage() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -245,6 +249,50 @@ export default function TimesheetPage() {
 
   const isCurrentMonth =
     year === today.getFullYear() && month === today.getMonth();
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const response = await apiV1.get(`/attendances/export-timesheet`, {
+        params: {
+          year,
+          month: month + 1,
+        },
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = `timesheet-${year}-${String(month + 1).padStart(2, "0")}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (filenameMatch && filenameMatch.length === 2) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error("Export failed:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Gagal Export",
+        text: "Terjadi kesalahan saat mengunduh laporan timesheet.",
+        background: "#1D1D1D",
+        color: "#fff",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -288,14 +336,21 @@ export default function TimesheetPage() {
           {/* Export Button */}
           <button
             type="button"
-            onClick={() => {
-              // TODO: Integrate with backend export endpoint
-              console.log("Export triggered for", year, month + 1);
-            }}
-            className="inline-flex h-10 w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted shadow-sm"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="inline-flex h-10 w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <FileDown className="size-4" />
-            <span>Export Laporan</span>
+            {isExporting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                <span>Menyiapkan...</span>
+              </>
+            ) : (
+              <>
+                <FileDown className="size-4" />
+                <span>Export Laporan</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -22,7 +22,7 @@ import Avatar from "@/features/profile/components/avatar";
 import CooldownBadge from "@/features/profile/components/cooldown-badge";
 import InfoRow from "@/features/profile/components/info-row";
 import SignatureUploader from "@/features/profile/components/signature-uploader";
-import { useProfileForm, COOLDOWN_DAYS } from "@/features/profile/hooks/use-profile-form";
+import { useProfileForm } from "@/features/profile/hooks/use-profile-form";
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
@@ -30,8 +30,6 @@ export default function ProfilePage() {
     profileData,
     isEditing,
     saveSuccess,
-    isSensitiveLocked,
-    cooldownRemaining,
     register,
     handleSubmit,
     handleEdit,
@@ -39,7 +37,48 @@ export default function ProfilePage() {
     handleSave,
     errors,
     isDirty,
+    isFetching,
   } = useProfileForm();
+
+  if (isFetching) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="h-8 w-40 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-4 w-64 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+              <div className="flex flex-col items-center gap-3">
+                <div className="size-20 animate-pulse rounded-full bg-muted" />
+                <div className="h-5 w-32 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="mt-4 space-y-3">
+                <div className="h-10 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-2">
+            <div className="rounded-xl border border-border bg-card shadow-sm">
+              <div className="border-b border-border px-6 py-4">
+                <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+                <div className="mt-1 h-3 w-56 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="grid gap-5 p-6 sm:grid-cols-2">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className={i === 0 ? "sm:col-span-2" : ""}>
+                    <div className="mb-1.5 h-4 w-24 animate-pulse rounded bg-muted" />
+                    <div className="h-10 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -76,26 +115,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Cooldown info card */}
-          {isSensitiveLocked && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-800 dark:bg-amber-950/20">
-              <div className="flex items-start gap-3">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
-                  <Clock className="size-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                    Cooldown Aktif
-                  </p>
-                  <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
-                    NPP dikunci selama {COOLDOWN_DAYS} hari sejak perubahan terakhir.
-                    Dapat diubah dalam{" "}
-                    <span className="font-semibold">{cooldownRemaining}</span>.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
 
         {/* ── Right: Edit Form ── */}
@@ -164,9 +184,9 @@ export default function ProfilePage() {
                 <Input
                   id="name"
                   placeholder="Masukkan nama lengkap..."
-                  disabled={!isEditing}
+                  disabled={true}
                   aria-invalid={!!errors.name}
-                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  className="cursor-default bg-muted/30"
                   {...register("name")}
                 />
                 <FieldError>{errors.name?.message}</FieldError>
@@ -182,9 +202,9 @@ export default function ProfilePage() {
                   id="email"
                   type="email"
                   placeholder="nama@perusahaan.com"
-                  disabled={!isEditing}
+                  disabled={true}
                   aria-invalid={!!errors.email}
-                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  className="cursor-default bg-muted/30"
                   {...register("email")}
                 />
                 <FieldError>{errors.email?.message}</FieldError>
@@ -200,9 +220,9 @@ export default function ProfilePage() {
                   id="noHp"
                   type="tel"
                   placeholder="08xx-xxxx-xxxx"
-                  disabled={!isEditing}
+                  disabled={true}
                   aria-invalid={!!errors.noHp}
-                  className={cn(!isEditing && "cursor-default bg-muted/30")}
+                  className="cursor-default bg-muted/30"
                   {...register("noHp")}
                 />
                 <FieldError>{errors.noHp?.message}</FieldError>
@@ -215,28 +235,16 @@ export default function ProfilePage() {
                 <FieldLabel htmlFor="npp" className="flex items-center gap-1.5">
                   <Hash className="size-3.5 text-muted-foreground" />
                   NPP
-                  {isSensitiveLocked && (
-                    <span className="ml-auto flex items-center gap-1 text-xs font-normal text-amber-600 dark:text-amber-400">
-                      <Lock className="size-3" />
-                      Terkunci
-                    </span>
-                  )}
                 </FieldLabel>
                 <Input
                   id="npp"
                   placeholder="Nomor Pokok Pegawai"
-                  disabled={!isEditing || isSensitiveLocked}
+                  disabled={true}
                   aria-invalid={!!errors.npp}
-                  className={cn(
-                    (!isEditing || isSensitiveLocked) && "cursor-default bg-muted/30",
-                  )}
+                  className="cursor-default bg-muted/30"
                   {...register("npp")}
                 />
-                {isSensitiveLocked ? (
-                  <CooldownBadge remaining={cooldownRemaining!} />
-                ) : (
-                  <FieldError>{errors.npp?.message}</FieldError>
-                )}
+                <FieldError>{errors.npp?.message}</FieldError>
               </Field>
 
               <Field>
@@ -250,7 +258,7 @@ export default function ProfilePage() {
                   disabled={!isEditing}
                   aria-invalid={!!errors.nppBni}
                   className={cn(!isEditing && "cursor-default bg-muted/30")}
-                  {...register("nppBni")}
+                  {...register("nppBni", { valueAsNumber: true })}
                 />
                 <FieldError>{errors.nppBni?.message}</FieldError>
               </Field>
@@ -331,14 +339,7 @@ export default function ProfilePage() {
               </Field>
             </form>
 
-            {/* Footer note */}
-            <div className="rounded-b-xl border-t border-border bg-muted/20 px-6 py-3">
-              <p className="text-xs text-muted-foreground">
-                {isSensitiveLocked
-                  ? `NPP dapat diubah kembali setelah cooldown ${COOLDOWN_DAYS} hari berakhir.`
-                  : `NPP dapat diubah, namun hanya sekali setiap ${COOLDOWN_DAYS} hari.`}
-              </p>
-            </div>
+
           </div>
           
           <div className="mt-6">

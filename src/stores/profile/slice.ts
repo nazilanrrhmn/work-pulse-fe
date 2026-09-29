@@ -1,13 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { updateBniProfile, updateProfile, uploadSignature } from "./async";
+import { fetchProfile, updateProfile, uploadSignature } from "./async";
+import type { UserProfileDTO } from "../../features/profile/types/profile.dto";
 
 interface ProfileState {
+  data: UserProfileDTO | null;
   loading: "idle" | "pending" | "succeeded" | "failed";
+  fetchLoading: "idle" | "pending" | "succeeded" | "failed";
   error: string | null;
 }
 
 const initialState: ProfileState = {
+  data: null,
   loading: "idle",
+  fetchLoading: "idle",
   error: null,
 };
 
@@ -17,17 +22,20 @@ export const profileSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(updateBniProfile.pending, (state) => {
-        state.loading = "pending";
+      // ── Fetch Profile ──
+      .addCase(fetchProfile.pending, (state) => {
+        state.fetchLoading = "pending";
         state.error = null;
       })
-      .addCase(updateBniProfile.fulfilled, (state) => {
-        state.loading = "succeeded";
+      .addCase(fetchProfile.fulfilled, (state, action) => {
+        state.fetchLoading = "succeeded";
+        state.data = action.payload;
       })
-      .addCase(updateBniProfile.rejected, (state, action) => {
-        state.loading = "failed";
+      .addCase(fetchProfile.rejected, (state, action) => {
+        state.fetchLoading = "failed";
         state.error = action.payload as string;
       })
+      // ── Update Profile ──
       .addCase(updateProfile.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -39,6 +47,7 @@ export const profileSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
+      // ── Upload Signature ──
       .addCase(uploadSignature.pending, (state) => {
         state.loading = "pending";
         state.error = null;

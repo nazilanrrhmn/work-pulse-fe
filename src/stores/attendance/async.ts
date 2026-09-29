@@ -1,5 +1,5 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { apiV1 } from "../../libs/api";
+import { apiV1, apiV2 } from "../../libs/api";
 
 export interface ClockOutPayloadDTO {
   projectName: string;
@@ -12,13 +12,19 @@ export interface LeavePayloadDTO {
   projectName: string;
 }
 
+export interface OvertimeClockOutPayloadDTO {
+  overtimeActivity: string;
+}
+
 export interface AttendanceResponseDTO {
   uuid: string;
   date: string;
   type: string;
   clockIn: string | null;
   clockOut: string | null;
-  isOvertime: boolean;
+  overtimeClockIn: string | null;
+  overtimeClockOut: string | null;
+  overtime: boolean;
   project: string | null;
   activityDescription: string | null;
 }
@@ -113,6 +119,61 @@ export const fetchAttendances = createAsyncThunk<PageableResponse<AttendanceResp
         return thunkAPI.rejectWithValue(error.message);
       }
       return thunkAPI.rejectWithValue("Failed to fetch attendances");
+    }
+  }
+);
+
+export const fetchTodayAttendance = createAsyncThunk<AttendanceResponseDTO | null, void>(
+  "attendance/fetchTodayAttendance",
+  async (_, thunkAPI) => {
+    try {
+      const response = await apiV1.get("/attendances/today");
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      if (error.response?.data?.message) {
+         return thunkAPI.rejectWithValue(error.response.data.message);
+      }
+      if (error instanceof Error) {
+        return thunkAPI.rejectWithValue(error.message);
+      }
+      return thunkAPI.rejectWithValue("Failed to fetch today's attendance");
+    }
+  }
+);
+
+export const clockInOvertime = createAsyncThunk<void, void>(
+  "attendance/clockInOvertime",
+  async (_, thunkAPI) => {
+    try {
+      await apiV2.post("/overtimes/clock-in");
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+         return thunkAPI.rejectWithValue(error.response.data.message);
+      }
+      if (error instanceof Error) {
+        return thunkAPI.rejectWithValue(error.message);
+      }
+      return thunkAPI.rejectWithValue("Overtime clock in failed");
+    }
+  }
+);
+
+export const clockOutOvertime = createAsyncThunk<void, OvertimeClockOutPayloadDTO>(
+  "attendance/clockOutOvertime",
+  async (payload, thunkAPI) => {
+    try {
+      await apiV2.post("/overtimes/clock-out", payload);
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+         return thunkAPI.rejectWithValue(error.response.data.message);
+      }
+      if (error instanceof Error) {
+        return thunkAPI.rejectWithValue(error.message);
+      }
+      return thunkAPI.rejectWithValue("Overtime clock out failed");
     }
   }
 );
